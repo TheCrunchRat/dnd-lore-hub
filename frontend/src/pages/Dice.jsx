@@ -1,33 +1,89 @@
-import React, { useState, useRef } from "react";
-import { Dices, RotateCcw, Trash2, Plus, Minus } from "lucide-react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { Dices, RotateCcw, Trash2, Plus, Minus, User, Users } from "lucide-react";
+import api, { formatApiError } from "../lib/api";
+import { useAuth } from "../contexts/AuthContext";
+import { toast } from "sonner";
 
 const DIE_TYPES = [4, 6, 8, 10, 12, 20, 100];
+const POLL_MS = 2000;
+const NAME_KEY = "lantern.diceName";
 
 function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
 }
 
+function timeAgo(iso) {
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 5) return "just now";
+  if (d < 60) return `${Math.floor(d)}s ago`;
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 export default function Dice() {
-  const [history, setHistory] = useState([]); // [{id, label, rolls, modifier, total, ts, crit}]
+  const { user } = useAuth();
+  const [playerName, setPlayerName] = useState(() => localStorage.getItem(NAME_KEY) || "");
+  const [nameDraft, setNameDraft] = useState("");
   const [currentRoll, setCurrentRoll] = useState(null);
   const [rolling, setRolling] = useState(false);
   const [counts, setCounts] = useState({ 4: 0, 6: 0, 8: 0, 10: 0, 12: 0, 20: 1, 100: 0 });
   const [modifier, setModifier] = useState(0);
-  const rollIdRef = useRef(0);
+  const [feed, setFeed] = useState([]); // shared roll feed (chronological asc, newest at end)
+  const lastTsRef = useRef(null);
+
+  // -------- Polling for shared feed --------
+  const fetchFeed = useCallback(async (initial = false) => {
+    try {
+      if (initial) {
+        const { data } = await api.get("/dice/rolls", { params: { limit: 50 } });
+        setFeed(data);
+        if (data.length > 0) lastTsRef.current = data[data.length - 1].created_at;
+      } else {
+        const { data } = await api.get("/dice/rolls", {
+          params: { since: lastTsRef.current || undefined, limit: 50 },
+        });
+        if (data.length > 0) {
+          setFeed((prev) => {
+            const seen = new Set(prev.map((r) => r.id));
+            const merged = [...prev];
+            for (const r of data) if (!seen.has(r.id)) merged.push(r);
+            return merged.slice(-100);
+          });
+          lastTsRef.current = data[data.length - 1].created_at;
+        }
+      }
+    } catch (_e) { /* ignore polling errors */ }
+  }, []);
+
+  useEffect(() => {
+    fetchFeed(true);
+    const t = setInterval(() => fetchFeed(false), POLL_MS);
+    return () => clearInterval(t);
+  }, [fetchFeed]);
+
+  const saveName = (name) => {
+    const v = (name || "").trim().slice(0, 40);
+    if (!v) return;
+    localStorage.setItem(NAME_KEY, v);
+    setPlayerName(v);
+    setNameDraft("");
+  };
 
   const adjust = (sides, delta) => {
     setCounts((c) => ({ ...c, [sides]: Math.max(0, Math.min(20, (c[sides] || 0) + delta)) }));
   };
 
-  const quickRoll = (sides) => {
-    performRoll({ [sides]: 1 }, 0);
-  };
+  const quickRoll = (sides) => performRoll({ [sides]: 1 }, 0);
 
   const performRoll = (diceMap, mod) => {
+    if (!playerName) {
+      toast.error("Pick a name first so the party knows whose dice these are");
+      return;
+    }
     const entries = Object.entries(diceMap).filter(([, n]) => n > 0);
     if (entries.length === 0) return;
     setRolling(true);
-    // Quick animated "tumble" — flicker random results, then settle
     let ticks = 0;
     const tickInterval = setInterval(() => {
       const tempRolls = entries.flatMap(([s, n]) =>
@@ -37,59 +93,130 @@ export default function Dice() {
       ticks += 1;
       if (ticks >= 8) {
         clearInterval(tickInterval);
-        // Final settled roll
         const finalRolls = entries.flatMap(([s, n]) =>
           Array.from({ length: n }, () => ({ sides: Number(s), value: rollDie(Number(s)) }))
         );
         const sum = finalRolls.reduce((a, r) => a + r.value, 0) + mod;
-        const label = entries.map(([s, n]) => `${n}d${s}`).join(" + ") + (mod ? (mod > 0 ? ` + ${mod}` : ` − ${Math.abs(mod)}`) : "");
+        const label =
+          entries.map(([s, n]) => `${n}d${s}`).join(" + ") +
+          (mod ? (mod > 0 ? ` + ${mod}` : ` − ${Math.abs(mod)}`) : "");
         const crit = finalRolls.some((r) => r.sides === 20 && r.value === 20);
         const fumble = finalRolls.some((r) => r.sides === 20 && r.value === 1);
-        const id = ++rollIdRef.current;
-        setCurrentRoll({ id, label, rolls: finalRolls, total: sum, modifier: mod, settled: true, crit, fumble });
-        setHistory((h) => [{ id, label, rolls: finalRolls, total: sum, modifier: mod, ts: Date.now(), crit, fumble }, ...h].slice(0, 20));
+
+        const payload = {
+          player_name: playerName,
+          label,
+          rolls: finalRolls,
+          modifier: mod,
+          total: sum,
+          crit,
+          fumble,
+        };
+
+        setCurrentRoll({ ...payload, settled: true });
         setRolling(false);
+
+        // Post to shared feed (don't block UI on failure)
+        api.post("/dice/rolls", payload).catch((e) => {
+          toast.error(formatApiError(e));
+        });
       }
     }, 60);
   };
 
-  const rollBuilder = () => {
-    performRoll(counts, modifier);
-  };
-
+  const rollBuilder = () => performRoll(counts, modifier);
   const resetCounts = () => {
     setCounts({ 4: 0, 6: 0, 8: 0, 10: 0, 12: 0, 20: 0, 100: 0 });
     setModifier(0);
   };
 
-  const clearHistory = () => setHistory([]);
+  const clearFeed = async () => {
+    if (!window.confirm("Clear the shared dice log for the whole party?")) return;
+    try {
+      await api.delete("/dice/rolls");
+      setFeed([]);
+      lastTsRef.current = null;
+      toast.success("Log cleared");
+    } catch (e) {
+      toast.error(formatApiError(e));
+    }
+  };
+
+  // ---------- Render ----------
+  if (!playerName) {
+    return (
+      <div className="max-w-md mx-auto px-6 py-24" data-testid="dice-name-prompt">
+        <div className="lantern-card vine-frame p-8 text-center">
+          <Dices className="w-12 h-12 text-lantern mx-auto ember-pulse mb-4" strokeWidth={1.25} />
+          <div className="text-xs tracking-[0.35em] uppercase text-lantern mb-2">Around the Lantern</div>
+          <h1 className="font-serif-display text-3xl text-bone mb-3">Who&rsquo;s rolling tonight?</h1>
+          <p className="text-sm text-muted-bone mb-6">
+            Tell the party your name. Every die you cast lights up the shared log for everyone watching.
+          </p>
+          <input
+            type="text"
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") saveName(nameDraft); }}
+            placeholder={user?.name || "Your name at the table"}
+            data-testid="name-input"
+            className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none mb-4"
+            autoFocus
+          />
+          <button
+            onClick={() => saveName(nameDraft || user?.name || "")}
+            disabled={!(nameDraft || user?.name)}
+            data-testid="name-submit"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] disabled:opacity-50 transition-colors"
+          >
+            Step to the table
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16" data-testid="dice-page">
-      <div className="mb-12">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="block w-10 h-px bg-[#FBBF24]/60" />
-          <span className="text-xs tracking-[0.35em] uppercase text-lantern">The Lanternkeeper&rsquo;s Bones</span>
+      <div className="flex items-start justify-between flex-wrap gap-4 mb-12">
+        <div>
+          <div className="flex items-center gap-3 mb-3">
+            <span className="block w-10 h-px bg-[#FBBF24]/60" />
+            <span className="text-xs tracking-[0.35em] uppercase text-lantern">The Lanternkeeper&rsquo;s Bones</span>
+          </div>
+          <h1 className="font-serif-display text-4xl sm:text-5xl lg:text-6xl text-bone leading-none ember-glow mb-3">
+            Roll the Bones
+          </h1>
+          <p className="text-muted-bone max-w-2xl leading-relaxed">
+            Cast the dice by lantern-light. Every throw is shared with the rest of the party in real time —
+            the shared log on the right updates as the table rolls.
+          </p>
         </div>
-        <h1 className="font-serif-display text-4xl sm:text-5xl lg:text-6xl text-bone leading-none ember-glow mb-3">
-          Roll the Bones
-        </h1>
-        <p className="text-muted-bone max-w-2xl leading-relaxed">
-          Cast the dice by lantern-light. Tap a die for a single roll, or build a hand of dice with a modifier
-          for the more complex throws the world sometimes asks of you.
-        </p>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-2 border border-rust">
+            <User className="w-3.5 h-3.5 text-lantern" />
+            <span className="text-sm text-bone" data-testid="current-name">{playerName}</span>
+            <button
+              onClick={() => { localStorage.removeItem(NAME_KEY); setPlayerName(""); }}
+              data-testid="change-name"
+              className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-lantern ml-2"
+            >
+              Change
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8">
-        {/* LEFT: Roll Display + Quick + Builder */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
+        {/* LEFT: Display + Quick + Builder */}
         <div className="space-y-8">
-          {/* Display */}
-          <div className="lantern-card vine-frame p-10 min-h-[280px] flex flex-col items-center justify-center text-center" data-testid="dice-display">
+          <div className="lantern-card vine-frame p-10 min-h-[300px] flex flex-col items-center justify-center text-center" data-testid="dice-display">
             {!currentRoll ? (
               <div className="text-muted-bone">
                 <Dices className="w-16 h-16 mx-auto mb-4 text-lantern/40 ember-pulse" strokeWidth={1.25} />
                 <p className="font-serif-display text-2xl text-bone">The bones rest unrolled</p>
-                <p className="text-sm mt-2">Pick a die below — the lantern will tell you what fate brings.</p>
+                <p className="text-sm mt-2">Pick a die below — the table will see what fate brings.</p>
               </div>
             ) : (
               <>
@@ -142,7 +269,6 @@ export default function Dice() {
             )}
           </div>
 
-          {/* Quick roll */}
           <div>
             <div className="text-xs tracking-[0.3em] uppercase text-lantern mb-4">Tap a single die</div>
             <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
@@ -161,7 +287,6 @@ export default function Dice() {
             </div>
           </div>
 
-          {/* Builder */}
           <div className="lantern-card p-6" data-testid="dice-builder">
             <div className="flex items-center justify-between mb-4">
               <div className="text-xs tracking-[0.3em] uppercase text-lantern">Build a hand</div>
@@ -176,11 +301,7 @@ export default function Dice() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {DIE_TYPES.map((s) => (
                 <div key={s} className="flex items-center justify-between border border-rust px-3 py-2">
-                  <button
-                    onClick={() => adjust(s, -1)}
-                    data-testid={`dec-d${s}`}
-                    className="p-1 text-muted-bone hover:text-lantern"
-                  >
+                  <button onClick={() => adjust(s, -1)} data-testid={`dec-d${s}`} className="p-1 text-muted-bone hover:text-lantern">
                     <Minus className="w-3.5 h-3.5" />
                   </button>
                   <span className="font-serif-display text-bone text-lg">
@@ -188,11 +309,7 @@ export default function Dice() {
                     <span className="text-muted-bone mx-1">×</span>
                     d{s}
                   </span>
-                  <button
-                    onClick={() => adjust(s, 1)}
-                    data-testid={`inc-d${s}`}
-                    className="p-1 text-muted-bone hover:text-lantern"
-                  >
+                  <button onClick={() => adjust(s, 1)} data-testid={`inc-d${s}`} className="p-1 text-muted-bone hover:text-lantern">
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                 </div>
@@ -230,46 +347,63 @@ export default function Dice() {
           </div>
         </div>
 
-        {/* RIGHT: History */}
-        <aside className="lantern-card p-6 self-start" data-testid="dice-history">
+        {/* RIGHT: Shared Feed */}
+        <aside className="lantern-card p-6 self-start" data-testid="dice-feed">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-xs tracking-[0.3em] uppercase text-lantern">Recent throws</div>
-            {history.length > 0 && (
+            <div className="text-xs tracking-[0.3em] uppercase text-lantern inline-flex items-center gap-2">
+              <Users className="w-3.5 h-3.5" /> Around the Table
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#4A7C59] animate-pulse ml-1" title="live" />
+            </div>
+            {user && feed.length > 0 && (
               <button
-                onClick={clearHistory}
-                data-testid="clear-history"
+                onClick={clearFeed}
+                data-testid="clear-feed"
                 className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-red-400 inline-flex items-center gap-1"
               >
                 <Trash2 className="w-3 h-3" /> Clear
               </button>
             )}
           </div>
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-bone">No rolls yet — the lantern is patient.</p>
+          {feed.length === 0 ? (
+            <p className="text-sm text-muted-bone">No rolls yet. Be the first to cast.</p>
           ) : (
-            <ul className="space-y-3 max-h-[640px] overflow-y-auto pr-1">
-              {history.map((h) => (
-                <li
-                  key={h.id}
-                  data-testid={`history-${h.id}`}
-                  className="border-l-2 border-[#2C362F] pl-3 py-1 hover:border-[#FBBF24]/60 transition-colors"
-                >
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[10px] tracking-[0.25em] uppercase text-muted-bone">{h.label}</span>
-                    <span
-                      className={`font-serif-display text-2xl leading-none ${
-                        h.crit ? "text-[#FBBF24] ember-glow" : h.fumble ? "text-red-400" : "text-bone"
-                      }`}
-                    >
-                      {h.total}
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-muted-bone mt-1">
-                    {h.rolls.map((r) => r.value).join(" + ")}
-                    {h.modifier !== 0 && (h.modifier > 0 ? ` + ${h.modifier}` : ` − ${Math.abs(h.modifier)}`)}
-                  </div>
-                </li>
-              ))}
+            <ul className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
+              {[...feed].reverse().map((h) => {
+                const mine = h.player_name === playerName;
+                return (
+                  <li
+                    key={h.id}
+                    data-testid={`feed-${h.id}`}
+                    className={`border-l-2 pl-3 py-1.5 transition-colors ${
+                      mine ? "border-[#FBBF24]/60 bg-[#FBBF24]/5" : "border-[#2C362F] hover:border-[#FBBF24]/40"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className={`text-sm font-serif-display ${mine ? "text-lantern" : "text-bone"}`}>
+                        {h.player_name}
+                        {mine && <span className="ml-1.5 text-[9px] tracking-[0.25em] uppercase text-muted-bone">you</span>}
+                      </span>
+                      <span
+                        className={`font-serif-display text-2xl leading-none ${
+                          h.crit ? "text-[#FBBF24] ember-glow" : h.fumble ? "text-red-400" : "text-bone"
+                        }`}
+                      >
+                        {h.total}
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between gap-3 mt-0.5">
+                      <span className="text-[10px] tracking-[0.25em] uppercase text-muted-bone">{h.label}</span>
+                      <span className="text-[10px] text-muted-bone">{timeAgo(h.created_at)}</span>
+                    </div>
+                    <div className="text-[11px] text-muted-bone mt-1">
+                      {h.rolls.map((r) => r.value).join(" + ")}
+                      {h.modifier !== 0 && (h.modifier > 0 ? ` + ${h.modifier}` : ` − ${Math.abs(h.modifier)}`)}
+                      {h.crit && <span className="ml-2 text-lantern">★ Nat 20</span>}
+                      {h.fumble && <span className="ml-2 text-red-400">✕ Nat 1</span>}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </aside>

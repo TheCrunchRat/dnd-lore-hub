@@ -352,6 +352,58 @@ class MapPositionIn(BaseModel):
     map_y: Optional[float] = None
 
 
+# ---------------- Communal Dice Rolls ----------------
+class DieRoll(BaseModel):
+    sides: int
+    value: int
+
+
+class DiceRollIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    player_name: str = Field(min_length=1, max_length=40)
+    label: str
+    rolls: List[DieRoll]
+    modifier: int = 0
+    total: int
+    crit: bool = False
+    fumble: bool = False
+
+
+@api.post("/dice/rolls")
+async def post_dice_roll(body: DiceRollIn):
+    doc = body.model_dump()
+    doc["id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.dice_rolls.insert_one(doc)
+    # Keep the collection bounded — drop oldest beyond 200
+    count = await db.dice_rolls.count_documents({})
+    if count > 200:
+        to_drop = count - 200
+        old = db.dice_rolls.find({}, {"_id": 1}).sort("created_at", 1).limit(to_drop)
+        ids = [d["_id"] async for d in old]
+        if ids:
+            await db.dice_rolls.delete_many({"_id": {"$in": ids}})
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/dice/rolls")
+async def list_dice_rolls(since: Optional[str] = None, limit: int = 50):
+    query: dict = {}
+    if since:
+        query["created_at"] = {"$gt": since}
+    cursor = db.dice_rolls.find(query, {"_id": 0}).sort("created_at", -1).limit(min(max(limit, 1), 200))
+    items = await cursor.to_list(length=limit)
+    items.reverse()  # chronological order ascending for delta merges
+    return items
+
+
+@api.delete("/dice/rolls")
+async def clear_dice_rolls(_user: dict = Depends(get_current_user)):
+    res = await db.dice_rolls.delete_many({})
+    return {"deleted": res.deleted_count}
+
+
 @api.put("/entries/{entry_id}/position")
 async def set_position(entry_id: str, body: MapPositionIn, _user: dict = Depends(get_current_user)):
     existing = await db.entries.find_one({"id": entry_id})
@@ -514,6 +566,7 @@ async def on_startup():
     await db.entries.create_index("id", unique=True)
     await db.entries.create_index("slug", unique=True)
     await db.entries.create_index("category")
+    await db.dice_rolls.create_index([("created_at", -1)])
     await seed_admins()
     await seed_entries()
 
