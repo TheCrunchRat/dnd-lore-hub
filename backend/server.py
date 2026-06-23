@@ -54,19 +54,23 @@ def verify_password(pwd: str, hashed: str) -> bool:
 
 
 def create_access_token(user_id: str, email: str) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
         "email": email,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TTL_MIN),
+        "iat": int(now.timestamp()),
+        "exp": now + timedelta(minutes=ACCESS_TTL_MIN),
         "type": "access",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def create_refresh_token(user_id: str) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TTL_DAYS),
+        "iat": int(now.timestamp()),
+        "exp": now + timedelta(days=REFRESH_TTL_DAYS),
         "type": "refresh",
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -80,8 +84,21 @@ def set_auth_cookies(response: Response, access: str, refresh: str) -> None:
 
 
 def clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie("access_token", path="/")
-    response.delete_cookie("refresh_token", path="/")
+    # Match attributes set on login so browsers/curl actually overwrite the cookies.
+    # Use a non-empty sentinel value: some HTTP clients (e.g. curl) don't replace cookies
+    # when the new value is an empty string, but they do replace when given a real value.
+    # The sentinel is not a valid JWT so it will fail auth even if it lingers.
+    for name in ("access_token", "refresh_token"):
+        response.set_cookie(
+            key=name,
+            value="logged-out",
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=0,
+            expires=0,
+            path="/",
+        )
 
 
 async def get_current_user(request: Request) -> dict:
@@ -99,6 +116,11 @@ async def get_current_user(request: Request) -> dict:
         user = await db.users.find_one({"_id": ObjectId(payload["sub"])})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+        # Server-side invalidation: tokens issued before `valid_after` are rejected (used on logout)
+        valid_after = user.get("valid_after", 0)
+        iat = payload.get("iat", 0)
+        if valid_after and iat < valid_after:
+            raise HTTPException(status_code=401, detail="Session ended")
         user["id"] = str(user["_id"])
         user.pop("_id", None)
         user.pop("password_hash", None)
@@ -182,7 +204,10 @@ async def login(body: LoginIn, response: Response):
 
 
 @api.post("/auth/logout")
-async def logout(response: Response, _user: dict = Depends(get_current_user)):
+async def logout(response: Response, user: dict = Depends(get_current_user)):
+    # Invalidate ALL tokens issued before now for this user
+    now_ts = int(datetime.now(timezone.utc).timestamp()) + 1
+    await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": {"valid_after": now_ts}})
     clear_auth_cookies(response)
     return {"ok": True}
 
