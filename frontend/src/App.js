@@ -7,6 +7,7 @@ import CategoryList from "@/pages/CategoryList";
 import EntryDetail from "@/pages/EntryDetail";
 import Login from "@/pages/Login";
 import Admin from "@/pages/Admin";
+import WorldMap from "@/pages/WorldMap";
 import { Toaster } from "sonner";
 
 function ProtectedRoute({ children }) {
@@ -32,6 +33,7 @@ function RouterShell() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/map" element={<WorldMap />} />
         <Route path="/world/:slug" element={<EntryDetail />} />
 
         {CATEGORY_ROUTES.map(({ path, category }) => (

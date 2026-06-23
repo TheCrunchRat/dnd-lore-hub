@@ -155,6 +155,8 @@ class EntryIn(BaseModel):
     tags: List[str] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
     pinned: bool = False
+    map_x: Optional[float] = None  # 0-100 percent X on world map
+    map_y: Optional[float] = None  # 0-100 percent Y on world map
 
 
 class EntryOut(EntryIn):
@@ -184,6 +186,8 @@ def entry_to_out(doc: dict) -> dict:
         "tags": doc.get("tags", []),
         "metadata": doc.get("metadata", {}),
         "pinned": doc.get("pinned", False),
+        "map_x": doc.get("map_x"),
+        "map_y": doc.get("map_y"),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
@@ -319,6 +323,50 @@ async def stats():
     return counts
 
 
+# ---------------- Settings (singleton) ----------------
+DEFAULT_MAP_URL = "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?auto=format&fit=crop&w=2400&q=80"
+
+
+class SettingsIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    world_map_url: Optional[str] = None
+
+
+@api.get("/settings")
+async def get_settings():
+    doc = await db.settings.find_one({"_id": "global"}, {"_id": 0})
+    if not doc:
+        return {"world_map_url": DEFAULT_MAP_URL}
+    return {"world_map_url": doc.get("world_map_url") or DEFAULT_MAP_URL}
+
+
+@api.put("/settings")
+async def update_settings(body: SettingsIn, _user: dict = Depends(get_current_user)):
+    update = {k: v for k, v in body.model_dump().items() if v is not None}
+    await db.settings.update_one({"_id": "global"}, {"$set": update}, upsert=True)
+    return await get_settings()
+
+
+class MapPositionIn(BaseModel):
+    map_x: Optional[float] = None
+    map_y: Optional[float] = None
+
+
+@api.put("/entries/{entry_id}/position")
+async def set_position(entry_id: str, body: MapPositionIn, _user: dict = Depends(get_current_user)):
+    existing = await db.entries.find_one({"id": entry_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    update = {
+        "map_x": body.map_x,
+        "map_y": body.map_y,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.entries.update_one({"id": entry_id}, {"$set": update})
+    updated = await db.entries.find_one({"id": entry_id}, {"_id": 0})
+    return entry_to_out(updated)
+
+
 # ---------------- Seeding ----------------
 async def seed_admins():
     seeds = [
@@ -366,6 +414,8 @@ SEED_ENTRIES = [
         "tags": ["city", "swamp"],
         "metadata": {"region": "The Drowning Fens", "population": "~8,400"},
         "pinned": True,
+        "map_x": 38.5,
+        "map_y": 62.0,
     },
     {
         "category": "character",

@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 2 focused on the new World Map feature (Leaflet) and the supporting backend endpoints. All 8 backend pytest cases pass and every requested frontend acceptance criterion is met: anonymous /map renders the map page, leaflet container, lantern marker for Mirewatch with a popup linking to /locations/mirewatch, while hiding the edit-map-url-btn and unplaced-card. As DM, the edit button, place/move/remove controls, place-banner, and url editor (input + save) all appear and behave correctly. Map nav link from the global header navigates to /map.",
+  "tested_scope": ["backend", "frontend", "integration"],
+  "backend_results": {
+    "endpoints_tested": [
+      "GET /api/settings -> 200 with world_map_url string (default unsplash photo)",
+      "PUT /api/settings (anon) -> 401",
+      "PUT /api/settings (DM) -> 200, updates and persists world_map_url",
+      "GET /api/entries/mirewatch -> exposes map_x=38.5 map_y=62.0 (seeded)",
+      "PUT /api/entries/{id}/position (anon) -> 401",
+      "PUT /api/entries/{id}/position (DM, x=50,y=50) -> 200, persisted via GET",
+      "PUT /api/entries/{id}/position (DM, null,null) -> 200, clears coords; GET shows nulls",
+      "PUT /api/entries/{unknown}/position -> 404"
+    ],
+    "pass": 8,
+    "fail": 0,
+    "report_file": "/app/test_reports/pytest/iter2_map.xml"
+  },
+  "frontend_results": {
+    "anonymous": [
+      "/map renders map-page + map-container",
+      "Lit on the Map sidebar lists placed-mirewatch",
+      ".leaflet-marker-icon count >= 1 after ~3s wait",
+      "Clicking marker opens popup with map-popup-mirewatch containing 'Mirewatch' and 'Open page →' link to /locations/mirewatch",
+      "Open page link successfully navigates to /locations/mirewatch",
+      "edit-map-url-btn and unplaced-card NOT rendered for anonymous user",
+      "nav-map link in global header navigates from / to /map"
+    ],
+    "dm_admin": [
+      "edit-map-url-btn visible; clicking it reveals map-url-input + save-map-url-btn (map-url-editor)",
+      "placed-mirewatch row exposes replace-mirewatch (Move) and remove-mirewatch (Remove) actions",
+      "unplaced-card appears only when an unplaced location exists; place-{slug} button initiates placeMode and place-banner becomes visible; cancel-place-btn dismisses it"
+    ]
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_map_feature.py",
+    "/app/test_reports/pytest/iter2_map.xml"
+  ],
+  "updated_files": [],
+  "critical_code_review_comments": [
+    "PUT /api/entries/{entry_id} and PUT /api/entries/{entry_id}/position only resolve by `id` (not slug), while GET /api/entries/{entry_id} accepts both id and slug. Not a bug for current UI (it passes loc.id) but inconsistent — consider supporting slug too, or document the asymmetry.",
+    "WorldMap.jsx: useEffect that loads natural image dimensions doesn't abort if mapUrl changes while a previous image is still loading. Minor race; harmless in practice.",
+    "Iteration 1 logout-cookie bug (clear_auth_cookies SameSite/Secure mismatch — see iteration_1.json) is still present in server.py lines 91-101. Not in scope for this iteration but remains an HIGH-priority hangover. The current code sets samesite='none' and secure=True with max_age=0, which actually looks correct now — appears to have been fixed since iteration 1. Re-verifying confirmed cookies clear properly via login/logout cycle during DM testing.",
+    "/api/settings GET is public (no auth) — fine as the map_url is meant to be public.",
+    "MapPositionIn permits negative or >100 values silently. Frontend clamps to 0-100 in ClickToPlace but the backend doesn't validate. Low priority."
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "DM dm@lantern.realm / lantern-keeper-1 (verified working)",
+  "seed_data_creation": "Created and DELETED a TEST_Unplaced_Hamlet location entry (slug test-unplaced-hamlet) to verify the unplaced-card UI branch (only Mirewatch is seeded as 'location' so unplaced list is otherwise empty). DB returned to seed state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Map feature passes 100%. Seed only contains one 'location' entry (Mirewatch) which is placed by default; the unplaced-card only appears when at least one location has map_x/map_y == null. If the main agent wants the unplaced card visible by default for demo screenshots, either add a second location seed without coordinates, or temporarily clear Mirewatch's coords via PUT /api/entries/{id}/position {null,null}. Iteration 1 logout cookie bug appears fixed (cookies use SameSite=none; Secure with max_age=0)."
+}
