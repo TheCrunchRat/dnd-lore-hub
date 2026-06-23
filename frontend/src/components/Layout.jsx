@@ -12,6 +12,7 @@ const navItems = [
   { to: "/lore", label: "Lore" },
   { to: "/sessions", label: "Sessions" },
   { to: "/bestiary", label: "Bestiary" },
+  { to: "/dice", label: "Dice" },
 ];
 
 export default function Layout({ children }) {
