@@ -23,17 +23,18 @@
 
 ## What's Implemented (Dec 2025)
 - Seeded two admin accounts + 7 starter entries (one per category)
-- Public endpoints: list/get entries, stats, category & full-text filter
-- Admin endpoints: create / update / delete entries (cookie auth)
-- Pages: Home (hero + Seven Tomes bento + recents), CategoryList (search + grid),
-  EntryDetail (hero image, drop-cap content, metadata, related), Login, Admin (drawer editor)
+- Public endpoints: list/get entries, stats, category & full-text filter, settings (world_map_url)
+- Admin endpoints: create / update / delete entries, set per-entry map position, update settings
+- Pages: Home, CategoryList, EntryDetail, Login, Admin, **WorldMap** (Leaflet `/map`)
+- Visual world map: Leaflet w/ image overlay, animated lantern markers, popup linking to entry,
+  click-to-place coordinates (admin), per-location placed/unplaced sidebar, swap-the-map-image admin tool
 - Lantern animated motifs, vine-frame corners, ember glow text, noise overlay
 - Toast notifications via sonner
 
 ## Backlog / Next
-- **P1** Visual world map (Leaflet / SVG hotspots linking locations)
-- **P1** Public sharable share-link toggle per entry
+- **P1** Public sharable share-link toggle per entry (DM-only spoiler tags)
 - **P2** Markdown rich-text editor (currently plain text w/ paragraph splitting)
 - **P2** Cross-linking between entries (mention syntax)
 - **P2** Image upload (currently URL-only)
+- **P2** Multiple regional maps (per-faction or per-act maps)
 - **P3** Player-facing comments / questions per session
