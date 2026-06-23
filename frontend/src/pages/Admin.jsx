@@ -156,6 +156,14 @@ export default function Admin() {
           <h1 className="font-serif-display text-4xl md:text-5xl text-bone">Inscribe the Codex</h1>
           <p className="text-sm text-muted-bone mt-2">Signed in as {user?.name} ({user?.email})</p>
         </div>
+        <div className="flex items-center gap-2 flex-wrap">
+        <button
+          onClick={() => window.location.assign("/admin/rules")}
+          data-testid="rules-admin-link"
+          className="inline-flex items-center gap-2 px-4 py-3 border border-rust text-bone hover:border-[#FBBF24]/50 text-xs tracking-[0.25em] uppercase"
+        >
+          Rules Library
+        </button>
         <button
           onClick={openNew}
           data-testid="new-entry-btn"
@@ -164,6 +172,7 @@ export default function Admin() {
           <Plus className="w-4 h-4" />
           New Entry
         </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-8" data-testid="filter-bar">

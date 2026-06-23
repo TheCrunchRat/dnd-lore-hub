@@ -4,6 +4,8 @@ import api, { CATEGORIES, formatApiError } from "../lib/api";
 import { ArrowLeft, Calendar, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import PCEditor from "../components/PCEditor";
+import CharacterBuilder from "../components/CharacterBuilder";
+import CharacterSheet from "../components/CharacterSheet";
 import { toast } from "sonner";
 
 const NAME_KEY = "lantern.diceName";
@@ -148,14 +150,18 @@ export default function EntryDetail() {
 
         {entry.metadata && Object.keys(entry.metadata).length > 0 && (
           <div className="lantern-card p-6 mb-10 grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {Object.entries(entry.metadata).map(([k, v]) => (
-              <div key={k}>
-                <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1">{k.replace(/_/g, " ")}</div>
-                <div className="text-sm text-bone">{String(v)}</div>
-              </div>
-            ))}
+            {Object.entries(entry.metadata)
+              .filter(([k]) => !["ability_scores","max_hp","current_hp","armor_class","speed","proficiencies","saving_throws","languages","spells_known","spell_slots","equipment","features","user_id","race_id","class_id"].includes(k))
+              .map(([k, v]) => (
+                <div key={k}>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1">{k.replace(/_/g, " ")}</div>
+                  <div className="text-sm text-bone">{String(v)}</div>
+                </div>
+              ))}
           </div>
         )}
+
+        {isPC && <CharacterSheet entry={entry} />}
 
         {entry.content && (
           <div className="prose-tome">
@@ -181,7 +187,7 @@ export default function EntryDetail() {
         )}
       </div>
 
-      <PCEditor
+      <CharacterBuilder
         open={pcEditorOpen}
         onClose={() => setPcEditorOpen(false)}
         existing={entry}

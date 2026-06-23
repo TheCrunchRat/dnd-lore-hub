@@ -660,6 +660,22 @@ class PlayerCharacterIn(BaseModel):
     level: Optional[int] = 1
     alignment: Optional[str] = ""
     pronouns: Optional[str] = ""
+    # --- 5e SRD fields (all optional so legacy editor still works) ---
+    race_id: Optional[str] = None
+    class_id: Optional[str] = None
+    background: Optional[str] = ""
+    ability_scores: Optional[dict] = None  # {str, dex, con, int, wis, cha}
+    max_hp: Optional[int] = None
+    current_hp: Optional[int] = None
+    armor_class: Optional[int] = None
+    speed: Optional[int] = None
+    proficiencies: Optional[List[str]] = None  # skill names
+    saving_throws: Optional[List[str]] = None  # ability names
+    languages: Optional[List[str]] = None
+    spells_known: Optional[List[str]] = None   # spell names or ids
+    spell_slots: Optional[dict] = None          # {1: {max, used}, ...}
+    equipment: Optional[List[str]] = None
+    features: Optional[List[str]] = None
 
 
 async def _is_admin(request: Request) -> bool:
@@ -691,10 +707,25 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "level": body.level or 1,
         "alignment": body.alignment or "",
         "pronouns": body.pronouns or "",
+        "race_id": body.race_id or "",
+        "class_id": body.class_id or "",
+        "background": body.background or "",
+        "ability_scores": body.ability_scores or {},
+        "max_hp": body.max_hp,
+        "current_hp": body.current_hp,
+        "armor_class": body.armor_class,
+        "speed": body.speed,
+        "proficiencies": body.proficiencies or [],
+        "saving_throws": body.saving_throws or [],
+        "languages": body.languages or [],
+        "spells_known": body.spells_known or [],
+        "spell_slots": body.spell_slots or {},
+        "equipment": body.equipment or [],
+        "features": body.features or [],
     }
     if user_id:
         metadata["user_id"] = user_id
-    metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
+    metadata = {k: v for k, v in metadata.items() if v not in ("", None, [], {})}
 
     doc = {
         "id": eid,
@@ -745,7 +776,26 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "alignment": body.alignment or metadata.get("alignment", ""),
         "pronouns": body.pronouns or metadata.get("pronouns", ""),
     })
-    # Link to user account if we don't already have one and the caller is signed in
+    # 5e fields — replace when client sends them (even empty list means "cleared")
+    for k, v in {
+        "race_id": body.race_id,
+        "class_id": body.class_id,
+        "background": body.background,
+        "ability_scores": body.ability_scores,
+        "max_hp": body.max_hp,
+        "current_hp": body.current_hp,
+        "armor_class": body.armor_class,
+        "speed": body.speed,
+        "proficiencies": body.proficiencies,
+        "saving_throws": body.saving_throws,
+        "languages": body.languages,
+        "spells_known": body.spells_known,
+        "spell_slots": body.spell_slots,
+        "equipment": body.equipment,
+        "features": body.features,
+    }.items():
+        if v is not None:
+            metadata[k] = v
     if current and not metadata.get("user_id"):
         metadata["user_id"] = current["id"]
     metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
@@ -792,6 +842,102 @@ async def my_pcs(user: dict = Depends(get_current_user)):
     ).sort("updated_at", -1)
     items = await cursor.to_list(length=100)
     return [entry_to_out(d) for d in items]
+
+
+# ---------------- D&D 5e Rules Library ----------------
+from dnd_srd import RACES as SRD_RACES, CLASSES as SRD_CLASSES, SPELLS as SRD_SPELLS, SKILLS as SRD_SKILLS, SPELL_SLOTS_FULL  # noqa: E402
+
+RULES_COLLECTIONS = {
+    "races": "rules_races",
+    "classes": "rules_classes",
+    "spells": "rules_spells",
+    "skills": "rules_skills",
+}
+
+
+def _strip_rules_doc(d: dict) -> dict:
+    d.pop("_id", None)
+    return d
+
+
+@api.get("/rules/_computed/spell_slots")
+async def spell_slots_table():
+    return SPELL_SLOTS_FULL
+
+
+@api.get("/rules/{kind}")
+async def list_rules(kind: str):
+    coll = RULES_COLLECTIONS.get(kind)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Unknown rule kind")
+    cursor = db[coll].find({}, {"_id": 0}).sort("name", 1)
+    items = await cursor.to_list(length=2000)
+    return items
+
+
+@api.get("/rules/{kind}/{rule_id}")
+async def get_rule(kind: str, rule_id: str):
+    coll = RULES_COLLECTIONS.get(kind)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Unknown rule kind")
+    doc = await db[coll].find_one({"id": rule_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return doc
+
+
+@api.post("/rules/{kind}")
+async def create_rule(kind: str, body: dict, _user: dict = Depends(get_current_user)):
+    coll = RULES_COLLECTIONS.get(kind)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Unknown rule kind")
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="name is required")
+    doc = {**body, "id": str(uuid.uuid4()), "source": body.get("source", "homebrew"), "created_at": datetime.now(timezone.utc).isoformat()}
+    await db[coll].insert_one(doc)
+    return _strip_rules_doc(doc)
+
+
+@api.put("/rules/{kind}/{rule_id}")
+async def update_rule(kind: str, rule_id: str, body: dict, _user: dict = Depends(get_current_user)):
+    coll = RULES_COLLECTIONS.get(kind)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Unknown rule kind")
+    existing = await db[coll].find_one({"id": rule_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Not found")
+    body.pop("id", None)
+    body["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db[coll].update_one({"id": rule_id}, {"$set": body})
+    updated = await db[coll].find_one({"id": rule_id}, {"_id": 0})
+    return updated
+
+
+@api.delete("/rules/{kind}/{rule_id}")
+async def delete_rule(kind: str, rule_id: str, _user: dict = Depends(get_current_user)):
+    coll = RULES_COLLECTIONS.get(kind)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Unknown rule kind")
+    res = await db[coll].delete_one({"id": rule_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
+
+
+async def seed_rules():
+    if await db.rules_skills.count_documents({}) == 0:
+        for s in SRD_SKILLS:
+            await db.rules_skills.insert_one({**s, "id": str(uuid.uuid4()), "source": "srd"})
+    if await db.rules_races.count_documents({}) == 0:
+        for r in SRD_RACES:
+            await db.rules_races.insert_one({**r, "id": str(uuid.uuid4()), "source": "srd"})
+    if await db.rules_classes.count_documents({}) == 0:
+        for c in SRD_CLASSES:
+            await db.rules_classes.insert_one({**c, "id": str(uuid.uuid4()), "source": "srd"})
+    if await db.rules_spells.count_documents({}) == 0:
+        for s in SRD_SPELLS:
+            await db.rules_spells.insert_one({**s, "id": str(uuid.uuid4()), "source": "srd"})
+    logger.info("Seeded D&D 5e rules library")
 
 
 @api.put("/entries/{entry_id}/position")
@@ -1009,9 +1155,12 @@ async def on_startup():
     await db.magic_trees.create_index("id", unique=True)
     await db.magic_trees.create_index("slug", unique=True)
     await db.scheduled_sessions.create_index("scheduled_at")
+    for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
+        await db[coll].create_index("id", unique=True)
     await seed_admins()
     await seed_entries()
     await seed_magic_trees()
+    await seed_rules()
 
 
 @app.on_event("shutdown")

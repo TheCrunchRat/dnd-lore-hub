@@ -5,6 +5,7 @@ import { SectionHeader, EntryCard, EmptyState } from "../components/CodexBits";
 import { useAuth } from "../contexts/AuthContext";
 import { Search, UserPlus } from "lucide-react";
 import PCEditor from "../components/PCEditor";
+import CharacterBuilder from "../components/CharacterBuilder";
 
 const COPY = {
   location: {
@@ -166,11 +167,10 @@ export default function CategoryList({ category, basePath }) {
       )}
 
       {isCharacterPage && (
-        <PCEditor
+        <CharacterBuilder
           open={pcEditorOpen}
           onClose={() => setPcEditorOpen(false)}
           onSaved={(saved) => {
-            // refresh list and jump to PC tab
             setCharTab("pc");
             api.get("/entries", { params: { category, q: q || undefined } })
               .then((r) => setEntries(r.data || []))
