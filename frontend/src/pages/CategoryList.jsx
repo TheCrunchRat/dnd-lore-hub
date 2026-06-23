@@ -51,6 +51,7 @@ export default function CategoryList({ category, basePath }) {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [charTab, setCharTab] = useState("pc"); // characters-only tab
 
   const cat = useMemo(() => CATEGORIES.find((c) => c.key === category), [category]);
   const copy = COPY[category] || COPY.location;
@@ -65,6 +66,27 @@ export default function CategoryList({ category, basePath }) {
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [category, q]);
+
+  // Character split (PC vs NPC based on metadata.role)
+  const isCharacterPage = category === "character";
+  const roleOf = (e) => {
+    const r = String(e?.metadata?.role || "").trim().toLowerCase();
+    if (!r) return "other";
+    if (r === "pc" || r.startsWith("player")) return "pc";
+    if (r === "npc" || r === "non-player" || r === "non player") return "npc";
+    return "other";
+  };
+  const filteredEntries = useMemo(() => {
+    if (!isCharacterPage || charTab === "all") return entries;
+    return entries.filter((e) => roleOf(e) === charTab);
+  }, [entries, isCharacterPage, charTab]);
+
+  const charCounts = useMemo(() => {
+    if (!isCharacterPage) return null;
+    const counts = { pc: 0, npc: 0, other: 0 };
+    for (const e of entries) counts[roleOf(e)] += 1;
+    return counts;
+  }, [entries, isCharacterPage]);
 
   if (!cat) {
     return (
@@ -81,7 +103,7 @@ export default function CategoryList({ category, basePath }) {
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20" data-testid={`page-${category}`}>
       <SectionHeader overline={copy.overline} title={copy.title} subtitle={copy.subtitle} />
 
-      <div className="flex items-center gap-3 mb-10 max-w-md">
+      <div className="flex items-center gap-3 mb-6 max-w-md">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-bone" />
           <input
@@ -95,13 +117,37 @@ export default function CategoryList({ category, basePath }) {
         </div>
       </div>
 
+      {isCharacterPage && (
+        <div className="flex gap-1 mb-10 border-b border-rust" data-testid="character-tabs">
+          {[
+            { k: "pc", label: "Player Characters", count: charCounts.pc },
+            { k: "npc", label: "NPCs", count: charCounts.npc },
+            { k: "all", label: "All", count: entries.length },
+          ].map((t) => (
+            <button
+              key={t.k}
+              onClick={() => setCharTab(t.k)}
+              data-testid={`char-tab-${t.k}`}
+              className={`px-5 py-3 text-xs tracking-[0.3em] uppercase border-b-2 -mb-px transition-colors ${
+                charTab === t.k ? "text-lantern border-[#FBBF24]" : "text-muted-bone border-transparent hover:text-bone"
+              }`}
+            >
+              {t.label} <span className="ml-1 text-[10px] text-muted-bone">({t.count})</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="text-muted-bone text-sm" data-testid="loading-state">Drawing the lantern closer…</div>
-      ) : entries.length === 0 ? (
-        <EmptyState category={copy.title.toLowerCase()} isAdmin={!!user} />
+      ) : filteredEntries.length === 0 ? (
+        <EmptyState
+          category={isCharacterPage && charTab === "pc" ? "player characters" : isCharacterPage && charTab === "npc" ? "NPCs" : copy.title.toLowerCase()}
+          isAdmin={!!user}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="entries-grid">
-          {entries.map((e) => (
+          {filteredEntries.map((e) => (
             <EntryCard key={e.id} entry={e} basePath={basePath} />
           ))}
         </div>
