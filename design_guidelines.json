@@ -1,0 +1,97 @@
+{
+  "project_name": "Dark Fantasy D&D Campaign Wiki",
+  "theme_mode": "dark",
+  "archetype": "Dark Organic & Earthy (Deep Forest & Ruined Stone)",
+  "global_styles": {
+    "background_color": "#0B0E0C",
+    "surface_color": "#151B17",
+    "text_color": "#E6E3D8"
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Cormorant Garamond, serif",
+      "body": "Manrope, sans-serif"
+    },
+    "scales": {
+      "h1": "text-5xl md:text-6xl tracking-tighter leading-none text-[#FBBF24]",
+      "h2": "text-3xl md:text-4xl tracking-tight text-[#E6E3D8]",
+      "h3": "text-xl md:text-2xl text-[#E6E3D8]",
+      "body": "text-base leading-relaxed text-[#9CA3AF]",
+      "overline": "text-sm tracking-[0.2em] uppercase text-[#FBBF24]"
+    },
+    "instructions": "Import Cormorant Garamond and Manrope from Google Fonts in index.css. Do NOT use Inter, Roboto, or generic sans for headings."
+  },
+  "colors": {
+    "background": {
+      "obsidian": "#0B0E0C",
+      "stone": "#151B17",
+      "stone_light": "#1F2621"
+    },
+    "primary": {
+      "lantern_glow": "#FBBF24",
+      "lantern_hover": "#F59E0B"
+    },
+    "secondary": {
+      "moss": "#4A7C59",
+      "moss_dark": "#2C362F"
+    },
+    "text": {
+      "bone": "#E6E3D8",
+      "muted": "#9CA3AF"
+    },
+    "borders": {
+      "rust": "#2C362F",
+      "glow": "rgba(251, 191, 36, 0.3)"
+    }
+  },
+  "layout_and_spacing": {
+    "padding": "Generous spacing. p-8, p-12 for content sections.",
+    "grids": "Use Bento grids (grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8) for Locations and Characters.",
+    "surfaces": {
+      "cards": "Solid stone (#151B17) background, 1px rust border (#2C362F), no soft shadows by default.",
+      "glass_header": "bg-[#0B0E0C]/80 backdrop-blur-xl border-b border-[#2C362F]"
+    }
+  },
+  "motion_and_interactions": {
+    "hover_states": "Cards subtly glow on hover: border shifts to rgba(251, 191, 36, 0.5), slight -translate-y-1, box-shadow shadow-[0_0_15px_rgba(251,191,36,0.1)].",
+    "focus_states": "focus:ring-2 focus:ring-[#FBBF24] focus:ring-offset-2 focus:ring-offset-[#0B0E0C]"
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#FBBF24] text-[#0B0E0C] font-bold hover:bg-[#F59E0B] transition-colors",
+      "secondary": "bg-transparent border border-[#FBBF24] text-[#FBBF24] hover:bg-[#FBBF24]/10 transition-colors"
+    },
+    "inputs": "bg-[#151B17] border-[#2C362F] text-[#E6E3D8] focus:border-[#FBBF24]",
+    "cards": "Remove Shadcn default soft shadows. Use sharp 1px borders and flat backgrounds."
+  },
+  "accessibility": {
+    "contrast": "Ensure text meets APCA/WCAG standards against dark backgrounds. Never use pure black/white.",
+    "testing": "All interactive elements MUST include data-testid attribute (e.g., data-testid='login-button')."
+  },
+  "media": {
+    "image_urls": {
+      "hero_background": {
+        "url": "https://images.pexels.com/photos/20461910/pexels-photo-20461910.jpeg",
+        "description": "Ancient mossy ruins. Must have a dark gradient overlay (bg-black/50 or darker) so title text is readable."
+      },
+      "lantern_motif": {
+        "url": "https://images.pexels.com/photos/323340/pexels-photo-323340.jpeg",
+        "description": "Glowing lantern. Good for Auth background, about section, or lore highlights."
+      },
+      "character_placeholder": {
+        "url": "https://images.pexels.com/photos/26178754/pexels-photo-26178754.jpeg",
+        "description": "Dark fantasy character portrait. Use as a placeholder for PCs and NPCs."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Build a fullstack hybrid React + FastAPI app.",
+    "Implement public read-only views: World Overview (Landing), Locations, Characters, Factions, Lore Timeline, and Bestiary.",
+    "Implement an Admin section (CMS) behind authentication for 2 DMs to manage the wiki content.",
+    "Use Shadcn UI components but heavily customize their default look to match the dark fantasy stone & lantern aesthetic.",
+    "For the hero section, use pure HTML/Tailwind with the hero_background image and a strong dark overlay.",
+    "Never use generic placeholder images; use the media URLs provided.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Use lucide-react icons, focusing on fantasy-appropriate ones (Flame, Map, BookOpen, Castle, Swords, Ghost, etc.)."
+  ]
+}
