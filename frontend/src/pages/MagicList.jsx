@@ -1,9 +1,21 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { Sparkles, Plus, ChevronRight } from "lucide-react";
+import { Sparkles, Plus, ChevronRight, Star, BookOpen, Swords } from "lucide-react";
 import { toast } from "sonner";
+
+const CATEGORIES = [
+  { key: "origin", label: "Origin Magic", singular: "School", icon: Sparkles,
+    overline: "Schools of the Realm",
+    blurb: "The native magics that grew in this world — taught, hoarded, feared." },
+  { key: "foundation", label: "Foundation", singular: "Constellation", icon: Star,
+    overline: "Foundation Constellations",
+    blurb: "Older than the kingdoms. Each constellation is a wheel of stars — open its tree to read the bargain each one asks." },
+  { key: "class", label: "Classes", singular: "Class", icon: Swords,
+    overline: "Class Trees",
+    blurb: "Class-specific skill paths. Build a path for any class your players walk." },
+];
 
 export default function MagicList() {
   const { user } = useAuth();
@@ -11,45 +23,42 @@ export default function MagicList() {
   const [trees, setTrees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState("origin");
 
   const load = async () => {
     setLoading(true);
     try {
       const { data } = await api.get("/magic/trees");
       setTrees(data);
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setLoading(false); }
   };
-
   useEffect(() => { load(); }, []);
 
+  const cat = CATEGORIES.find((c) => c.key === tab);
+  const filtered = useMemo(
+    () => trees.filter((t) => (t.tree_category || "origin") === tab),
+    [trees, tab]
+  );
+
   const createNew = async () => {
-    const name = window.prompt("Name your new school of magic:");
+    const name = window.prompt(`Name your new ${cat.singular.toLowerCase()}:`);
     if (!name) return;
     setCreating(true);
     try {
       const { data } = await api.post("/magic/trees", {
-        name,
-        subtitle: "",
-        summary: "",
-        content: "",
-        accent_color: "#FBBF24",
-        nodes: [],
+        name, subtitle: "", summary: "", content: "",
+        accent_color: "#FBBF24", nodes: [],
+        tree_category: tab,
       });
       navigate(`/magic/${data.slug}`);
-    } catch (e) {
-      toast.error(formatApiError(e));
-    } finally {
-      setCreating(false);
-    }
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setCreating(false); }
   };
 
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16" data-testid="magic-list-page">
-      <div className="flex items-start justify-between flex-wrap gap-4 mb-12">
+      <div className="flex items-start justify-between flex-wrap gap-4 mb-10">
         <div>
           <div className="flex items-center gap-3 mb-3">
             <span className="block w-10 h-px bg-[#FBBF24]/60" />
@@ -59,8 +68,8 @@ export default function MagicList() {
             Schools of Magic
           </h1>
           <p className="text-muted-bone max-w-2xl leading-relaxed">
-            Each school is a living constellation — abilities unlock from elder branches into newer
-            leaves. Open a school to wander its tree by lantern-light.
+            Three branches of the atlas: the realm&rsquo;s native schools, the older constellations of
+            Foundation magic, and the class-specific skill paths.
           </p>
         </div>
         {user && (
@@ -70,53 +79,68 @@ export default function MagicList() {
             data-testid="new-tree-btn"
             className="inline-flex items-center gap-2 px-5 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] transition-colors disabled:opacity-50"
           >
-            <Plus className="w-4 h-4" />
-            New School
+            <Plus className="w-4 h-4" /> New {cat?.singular}
           </button>
         )}
       </div>
 
+      <div className="flex gap-1 mb-8 border-b border-rust overflow-x-auto" data-testid="magic-tabs">
+        {CATEGORIES.map((c) => {
+          const Icon = c.icon;
+          const count = trees.filter((t) => (t.tree_category || "origin") === c.key).length;
+          return (
+            <button key={c.key} onClick={() => setTab(c.key)} data-testid={`magic-tab-${c.key}`}
+              className={`inline-flex items-center gap-2 px-5 py-3 text-xs tracking-[0.3em] uppercase border-b-2 -mb-px whitespace-nowrap transition-colors ${
+                tab === c.key ? "text-lantern border-[#FBBF24]" : "text-muted-bone border-transparent hover:text-bone"
+              }`}>
+              <Icon className="w-3.5 h-3.5" />
+              {c.label}
+              <span className="text-[10px] text-muted-bone">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mb-8">
+        <div className="text-xs tracking-[0.3em] uppercase text-lantern mb-1">{cat?.overline}</div>
+        <p className="text-sm text-muted-bone max-w-3xl">{cat?.blurb}</p>
+      </div>
+
       {loading ? (
         <div className="text-muted-bone">Unfolding the arcane atlas…</div>
-      ) : trees.length === 0 ? (
-        <div className="lantern-card p-12 text-center">
-          <Sparkles className="w-12 h-12 text-lantern/40 mx-auto mb-4 ember-pulse" strokeWidth={1} />
-          <p className="font-serif-display text-2xl text-bone">No schools yet</p>
+      ) : filtered.length === 0 ? (
+        <div className="lantern-card p-12 text-center" data-testid="empty-state">
+          {React.createElement(cat?.icon || Sparkles, { className: "w-12 h-12 text-lantern/40 mx-auto mb-4 ember-pulse", strokeWidth: 1 })}
+          <p className="font-serif-display text-2xl text-bone">No {cat?.singular.toLowerCase()}s here yet</p>
           <p className="text-sm text-muted-bone mt-2">
-            {user ? "Sign of a new age — create the first one." : "The keepers are still drafting the trees."}
+            {user ? `Click "New ${cat?.singular}" above to create the first one.` : "The keepers are still drafting this branch."}
           </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {trees.map((t) => (
+          {filtered.map((t) => (
             <Link
               key={t.id}
               to={`/magic/${t.slug}`}
               data-testid={`tree-card-${t.slug}`}
               className="lantern-card vine-frame p-8 group block relative overflow-hidden"
             >
-              <div
-                className="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-3xl opacity-20 group-hover:opacity-40 transition-opacity"
-                style={{ background: t.accent_color || "#FBBF24" }}
-              />
+              <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full blur-3xl opacity-20 group-hover:opacity-40 transition-opacity"
+                style={{ background: t.accent_color || "#FBBF24" }} />
               <div className="relative">
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5" style={{ color: t.accent_color || "#FBBF24" }} strokeWidth={1.5} />
+                  {React.createElement(cat?.icon || Sparkles, { className: "w-5 h-5", style: { color: t.accent_color || "#FBBF24" }, strokeWidth: 1.5 })}
                   <span className="text-[10px] tracking-[0.3em] uppercase text-muted-bone">
-                    {t.nodes?.length || 0} abilities
+                    {t.nodes?.length || 0} {tab === "foundation" ? "stars" : "abilities"}
                   </span>
                 </div>
                 <h3 className="font-serif-display text-3xl text-bone group-hover:text-lantern transition-colors mb-1">
                   {t.name}
                 </h3>
-                {t.subtitle && (
-                  <p className="text-sm italic text-muted-bone mb-3">{t.subtitle}</p>
-                )}
-                {t.summary && (
-                  <p className="text-sm text-muted-bone leading-relaxed line-clamp-3 mb-4">{t.summary}</p>
-                )}
+                {t.subtitle && <p className="text-sm italic text-muted-bone mb-3">{t.subtitle}</p>}
+                {t.summary && <p className="text-sm text-muted-bone leading-relaxed line-clamp-3 mb-4">{t.summary}</p>}
                 <div className="inline-flex items-center gap-1 text-xs tracking-[0.25em] uppercase text-lantern">
-                  Walk the tree <ChevronRight className="w-3.5 h-3.5" />
+                  {tab === "foundation" ? "Walk the constellation" : "Walk the tree"} <ChevronRight className="w-3.5 h-3.5" />
                 </div>
               </div>
             </Link>

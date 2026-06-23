@@ -459,6 +459,7 @@ class MagicTreeIn(BaseModel):
     content: Optional[str] = ""
     accent_color: Optional[str] = "#FBBF24"
     image_url: Optional[str] = ""
+    tree_category: Literal["origin", "foundation", "class"] = "origin"
     nodes: List[MagicNode] = Field(default_factory=list)
 
 
@@ -472,6 +473,7 @@ def magic_to_out(doc: dict) -> dict:
         "content": doc.get("content", ""),
         "accent_color": doc.get("accent_color", "#FBBF24"),
         "image_url": doc.get("image_url", ""),
+        "tree_category": doc.get("tree_category", "origin"),
         "nodes": doc.get("nodes", []),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
@@ -1084,6 +1086,7 @@ SEED_MAGIC_TREES = [
         "content": "Wickfire practitioners begin by tending a single flame for a year and a day. Only then are they shown how to shape it.",
         "accent_color": "#FBBF24",
         "image_url": "",
+        "tree_category": "origin",
         "nodes": [
             {"id": "n1", "name": "Tend the Wick", "description": "The initiate's first cantrip. Light or extinguish any small flame within sight.", "icon": "Flame", "x": 0.5, "y": 0.10, "requires": []},
             {"id": "n2", "name": "Lantern Eye", "description": "See clearly in lantern-light up to 60 feet, even through fog or smoke.", "icon": "Eye", "x": 0.28, "y": 0.32, "requires": ["n1"]},
@@ -1101,6 +1104,7 @@ SEED_MAGIC_TREES = [
         "content": "Practitioners drink a tea of crushed shrine-moss. Most do not return from the first dream. Those who do speak to the forests differently afterward.",
         "accent_color": "#4A7C59",
         "image_url": "",
+        "tree_category": "origin",
         "nodes": [
             {"id": "m1", "name": "Greenwhisper", "description": "Speak with any plant for one minute. Most have little to say.", "icon": "Leaf", "x": 0.5, "y": 0.10, "requires": []},
             {"id": "m2", "name": "Vine-Step", "description": "Vines and roots part to let you walk silently through dense undergrowth.", "icon": "Footprints", "x": 0.3, "y": 0.35, "requires": ["m1"]},
@@ -1109,12 +1113,38 @@ SEED_MAGIC_TREES = [
             {"id": "m5", "name": "Verdant Call", "description": "Summon a host of crows, foxes, or mushroom-spites to your aid for one scene.", "icon": "Bird", "x": 0.5, "y": 0.85, "requires": ["m4"]},
         ],
     },
+    {
+        "name": "The Sundered Lantern",
+        "subtitle": "A constellation of the Long Dusk",
+        "summary": "Among the foundation constellations — wheels of stars older than any kingdom. The Sundered Lantern grants light to those who walk between memory and rumor.",
+        "content": "Each star is an aspect. Drawing power from a star asks something in trade: a name, a season of sleep, a dream you would rather forget.",
+        "accent_color": "#A78BFA",
+        "image_url": "",
+        "tree_category": "foundation",
+        "nodes": [
+            {"id": "s1", "name": "The Wick", "description": "The first star. A small, steady light that cannot be extinguished by living hand.", "icon": "Flame", "x": 0.5, "y": 0.12, "requires": []},
+            {"id": "s2", "name": "The Smoke", "description": "Reach the second star to obscure your passage from one who watches you.", "icon": "Wind", "x": 0.25, "y": 0.38, "requires": ["s1"]},
+            {"id": "s3", "name": "The Shadow", "description": "The third star. Cast a shadow that is not your own — it walks where you cannot.", "icon": "Moon", "x": 0.75, "y": 0.38, "requires": ["s1"]},
+            {"id": "s4", "name": "The Glass", "description": "See a moment that has already happened, once, never twice.", "icon": "Eye", "x": 0.5, "y": 0.65, "requires": ["s2", "s3"]},
+            {"id": "s5", "name": "The Eclipse", "description": "Become unseen for as long as the lantern guttering at the heart of you holds.", "icon": "Star", "x": 0.5, "y": 0.88, "requires": ["s4"]},
+        ],
+    },
 ]
 
 
 async def seed_magic_trees():
     count = await db.magic_trees.count_documents({})
+    # Backfill any pre-existing trees without a category
+    await db.magic_trees.update_many({"tree_category": {"$exists": False}}, {"$set": {"tree_category": "origin"}})
     if count > 0:
+        # Insert the foundation constellation if it doesn't already exist
+        if not await db.magic_trees.find_one({"slug": "the-sundered-lantern"}):
+            now = datetime.now(timezone.utc).isoformat()
+            const = next((t for t in SEED_MAGIC_TREES if t["name"] == "The Sundered Lantern"), None)
+            if const:
+                doc = {**const, "id": str(uuid.uuid4()), "slug": slugify(const["name"]), "created_at": now, "updated_at": now}
+                await db.magic_trees.insert_one(doc)
+                logger.info("Seeded foundation constellation")
         return
     now = datetime.now(timezone.utc).isoformat()
     for t in SEED_MAGIC_TREES:

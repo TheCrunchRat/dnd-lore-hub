@@ -67,6 +67,7 @@ export default function MagicTree() {
         content: next.content,
         accent_color: next.accent_color,
         image_url: next.image_url,
+        tree_category: next.tree_category || "origin",
         nodes: next.nodes,
       };
       const { data } = await api.put(`/magic/trees/${next.id}`, payload);
@@ -652,6 +653,19 @@ function SchoolSettings({ tree, onChange, onClose, onDelete }) {
                 className="flex-1 px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none font-mono text-sm"
               />
             </div>
+          </Field>
+
+          <Field label="Category">
+            <select
+              value={tree.tree_category || "origin"}
+              onChange={(e) => onChange({ tree_category: e.target.value })}
+              data-testid="settings-category"
+              className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none"
+            >
+              <option value="origin">Origin Magic (school)</option>
+              <option value="foundation">Foundation (constellation)</option>
+              <option value="class">Class (skill path)</option>
+            </select>
           </Field>
 
           <button
