@@ -13,6 +13,7 @@ const navItems = [
   { to: "/sessions", label: "Sessions" },
   { to: "/bestiary", label: "Bestiary" },
   { to: "/magic", label: "Magic" },
+  { to: "/shop", label: "Shop" },
   { to: "/dice", label: "Dice" },
 ];
 
