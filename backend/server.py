@@ -131,6 +131,13 @@ async def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
+async def get_optional_user(request: Request) -> Optional[dict]:
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
+
+
 # ---------------- Models ----------------
 class UserPublic(BaseModel):
     id: str
@@ -142,6 +149,12 @@ class UserPublic(BaseModel):
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
+
+
+class RegisterIn(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    name: str = Field(min_length=1, max_length=40)
 
 
 class EntryIn(BaseModel):
@@ -205,6 +218,28 @@ async def login(body: LoginIn, response: Response):
     refresh = create_refresh_token(uid)
     set_auth_cookies(response, access, refresh)
     return {"id": uid, "email": user["email"], "name": user["name"], "role": user["role"]}
+
+
+@api.post("/auth/register", response_model=UserPublic)
+async def register(body: RegisterIn, response: Response):
+    email = body.email.lower().strip()
+    name = body.name.strip()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="An account with that email already exists")
+    user_doc = {
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "name": name,
+        "role": "player",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    res = await db.users.insert_one(user_doc)
+    uid = str(res.inserted_id)
+    access = create_access_token(uid, email)
+    refresh = create_refresh_token(uid)
+    set_auth_cookies(response, access, refresh)
+    return {"id": uid, "email": email, "name": name, "role": "player"}
 
 
 @api.post("/auth/logout")
@@ -628,15 +663,17 @@ class PlayerCharacterIn(BaseModel):
 
 
 async def _is_admin(request: Request) -> bool:
-    try:
-        await get_current_user(request)
-        return True
-    except HTTPException:
-        return False
+    user = await get_optional_user(request)
+    return bool(user and user.get("role") == "admin")
 
 
 @api.post("/pcs")
-async def create_pc(body: PlayerCharacterIn):
+async def create_pc(body: PlayerCharacterIn, request: Request):
+    current = await get_optional_user(request)
+    # Signed-in users own through their account; anonymous fall back to player_name
+    owner_name = (current["name"] if current else body.player_name).strip()
+    user_id = current["id"] if current else None
+
     now = datetime.now(timezone.utc).isoformat()
     eid = str(uuid.uuid4())
     base_slug = slugify(body.name)
@@ -648,14 +685,15 @@ async def create_pc(body: PlayerCharacterIn):
 
     metadata = {
         "role": "PC",
-        "owner": body.player_name.strip(),
+        "owner": owner_name,
         "race": body.race or "",
         "class": body.char_class or "",
         "level": body.level or 1,
         "alignment": body.alignment or "",
         "pronouns": body.pronouns or "",
     }
-    # Strip empty values from metadata for cleanliness
+    if user_id:
+        metadata["user_id"] = user_id
     metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
 
     doc = {
@@ -678,26 +716,38 @@ async def create_pc(body: PlayerCharacterIn):
     return entry_to_out(doc)
 
 
+def _can_modify_pc(entry: dict, current: Optional[dict], player_name: str) -> bool:
+    if current and current.get("role") == "admin":
+        return True
+    meta = entry.get("metadata") or {}
+    if current and meta.get("user_id") and meta.get("user_id") == current.get("id"):
+        return True
+    owner = (meta.get("owner") or "").strip().lower()
+    return bool(owner and player_name and owner == player_name.strip().lower())
+
+
 @api.put("/pcs/{entry_id}")
 async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
     existing = await db.entries.find_one({"id": entry_id, "category": "character"})
     if not existing:
         raise HTTPException(status_code=404, detail="Character not found")
-    owner = (existing.get("metadata") or {}).get("owner", "")
-    is_admin = await _is_admin(request)
-    if not is_admin and owner.lower() != body.player_name.strip().lower():
+    current = await get_optional_user(request)
+    if not _can_modify_pc(existing, current, body.player_name):
         raise HTTPException(status_code=403, detail="Only the character's player or a DM can edit this character")
 
     metadata = {**(existing.get("metadata") or {})}
     metadata.update({
         "role": "PC",
-        "owner": owner or body.player_name.strip(),  # preserve existing owner unless empty
+        "owner": metadata.get("owner") or (current["name"] if current else body.player_name.strip()),
         "race": body.race or metadata.get("race", ""),
         "class": body.char_class or metadata.get("class", ""),
         "level": body.level if body.level is not None else metadata.get("level", 1),
         "alignment": body.alignment or metadata.get("alignment", ""),
         "pronouns": body.pronouns or metadata.get("pronouns", ""),
     })
+    # Link to user account if we don't already have one and the caller is signed in
+    if current and not metadata.get("user_id"):
+        metadata["user_id"] = current["id"]
     metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
 
     update = {
@@ -723,16 +773,25 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
 
 
 @api.delete("/pcs/{entry_id}")
-async def delete_pc(entry_id: str, player_name: str, request: Request):
+async def delete_pc(entry_id: str, request: Request, player_name: str = ""):
     existing = await db.entries.find_one({"id": entry_id, "category": "character"})
     if not existing:
         raise HTTPException(status_code=404, detail="Character not found")
-    owner = (existing.get("metadata") or {}).get("owner", "")
-    is_admin = await _is_admin(request)
-    if not is_admin and owner.lower() != player_name.strip().lower():
+    current = await get_optional_user(request)
+    if not _can_modify_pc(existing, current, player_name):
         raise HTTPException(status_code=403, detail="Only the character's player or a DM can delete this character")
     await db.entries.delete_one({"id": entry_id})
     return {"ok": True}
+
+
+@api.get("/me/pcs")
+async def my_pcs(user: dict = Depends(get_current_user)):
+    cursor = db.entries.find(
+        {"category": "character", "metadata.user_id": user["id"]},
+        {"_id": 0},
+    ).sort("updated_at", -1)
+    items = await cursor.to_list(length=100)
+    return [entry_to_out(d) for d in items]
 
 
 @api.put("/entries/{entry_id}/position")

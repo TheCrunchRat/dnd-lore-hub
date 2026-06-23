@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { Flame, LogIn } from "lucide-react";
 
@@ -82,7 +82,7 @@ export default function Login() {
         </button>
 
         <p className="text-[11px] text-muted-bone text-center mt-6 leading-relaxed">
-          Only the DMs hold the keys. Players need only read.
+          New to the table? <Link to="/register" className="text-lantern hover:underline">Make an account</Link>
         </p>
       </form>
     </div>

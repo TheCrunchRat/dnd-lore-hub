@@ -54,14 +54,19 @@ export default function Layout({ children }) {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <button
-                  onClick={() => navigate("/admin")}
-                  data-testid="admin-btn"
-                  className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-[#FBBF24]/40 text-lantern hover:bg-[#FBBF24]/10 transition-colors"
-                >
-                  <Shield className="w-3.5 h-3.5" />
-                  Admin
-                </button>
+                <span className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-rust text-bone" data-testid="user-pill">
+                  <Shield className="w-3.5 h-3.5 text-lantern" />
+                  {user.name}
+                </span>
+                {user.role === "admin" && (
+                  <button
+                    onClick={() => navigate("/admin")}
+                    data-testid="admin-btn"
+                    className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-[#FBBF24]/40 text-lantern hover:bg-[#FBBF24]/10 transition-colors"
+                  >
+                    Admin
+                  </button>
+                )}
                 <button
                   onClick={async () => { await logout(); navigate("/"); }}
                   data-testid="logout-btn"
@@ -78,7 +83,7 @@ export default function Layout({ children }) {
                 className="inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-[#FBBF24]/40 text-lantern hover:bg-[#FBBF24]/10 transition-colors"
               >
                 <LogIn className="w-3.5 h-3.5" />
-                DM Sign-in
+                Sign in
               </Link>
             )}
           </div>

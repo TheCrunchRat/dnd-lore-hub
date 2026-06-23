@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { X, Save, UserPlus } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 
 const NAME_KEY = "lantern.diceName";
 
@@ -19,6 +20,7 @@ const empty = {
 };
 
 export default function PCEditor({ open, onClose, onSaved, existing }) {
+  const { user } = useAuth();
   const isEdit = !!existing;
   const initial = isEdit
     ? {
@@ -36,10 +38,11 @@ export default function PCEditor({ open, onClose, onSaved, existing }) {
     : empty;
 
   const [draft, setDraft] = useState(initial);
-  const [playerName, setPlayerName] = useState(
-    () => existing?.metadata?.owner || localStorage.getItem(NAME_KEY) || ""
-  );
+  // When signed in, the player name is locked to the account name
+  const initialPlayerName = user?.name || existing?.metadata?.owner || localStorage.getItem(NAME_KEY) || "";
+  const [playerName, setPlayerName] = useState(initialPlayerName);
   const [saving, setSaving] = useState(false);
+  const nameLocked = !!user || (isEdit && !!existing?.metadata?.owner);
 
   if (!open) return null;
 
@@ -112,11 +115,16 @@ export default function PCEditor({ open, onClose, onSaved, existing }) {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
               data-testid="field-player-name"
-              disabled={isEdit && !!existing?.metadata?.owner}
+              disabled={nameLocked}
               placeholder="Mira"
               className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none disabled:opacity-70"
             />
-            {isEdit && existing?.metadata?.owner && (
+            {user && (
+              <p className="text-[10px] text-muted-bone mt-1">
+                Linked to your account ({user.email}).
+              </p>
+            )}
+            {!user && isEdit && existing?.metadata?.owner && (
               <p className="text-[10px] text-muted-bone mt-1">
                 Locked to the original player — only they (or a DM) can transfer ownership.
               </p>

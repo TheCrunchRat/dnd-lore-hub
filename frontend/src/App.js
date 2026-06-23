@@ -13,13 +13,15 @@ import MagicList from "@/pages/MagicList";
 import MagicTree from "@/pages/MagicTree";
 import Sessions from "@/pages/Sessions";
 import Shop from "@/pages/Shop";
+import Register from "@/pages/Register";
 import { Toaster } from "sonner";
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, checking } = useAuth();
   const location = useLocation();
   if (checking) return <div className="min-h-[60vh] flex items-center justify-center text-muted-bone">Lighting the lantern…</div>;
   if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  if (requireAdmin && user.role !== "admin") return <Navigate to="/" replace />;
   return children;
 }
 
@@ -37,6 +39,7 @@ function RouterShell() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/map" element={<WorldMap />} />
         <Route path="/dice" element={<Dice />} />
         <Route path="/sessions" element={<Sessions />} />
@@ -52,7 +55,7 @@ function RouterShell() {
           </React.Fragment>
         ))}
 
-        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
