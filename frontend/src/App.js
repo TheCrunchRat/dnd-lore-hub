@@ -9,6 +9,8 @@ import Login from "@/pages/Login";
 import Admin from "@/pages/Admin";
 import WorldMap from "@/pages/WorldMap";
 import Dice from "@/pages/Dice";
+import MagicList from "@/pages/MagicList";
+import MagicTree from "@/pages/MagicTree";
 import { Toaster } from "sonner";
 
 function ProtectedRoute({ children }) {
@@ -36,6 +38,8 @@ function RouterShell() {
         <Route path="/login" element={<Login />} />
         <Route path="/map" element={<WorldMap />} />
         <Route path="/dice" element={<Dice />} />
+        <Route path="/magic" element={<MagicList />} />
+        <Route path="/magic/:slug" element={<MagicTree />} />
         <Route path="/world/:slug" element={<EntryDetail />} />
 
         {CATEGORY_ROUTES.map(({ path, category }) => (

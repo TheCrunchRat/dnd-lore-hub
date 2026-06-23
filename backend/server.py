@@ -404,6 +404,105 @@ async def clear_dice_rolls(_user: dict = Depends(get_current_user)):
     return {"deleted": res.deleted_count}
 
 
+# ---------------- Magic Skill Trees ----------------
+class MagicNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    name: str
+    description: Optional[str] = ""
+    icon: Optional[str] = "Sparkles"
+    x: float = 0.5  # 0..1 percentage on canvas
+    y: float = 0.5
+    requires: List[str] = Field(default_factory=list)  # parent node ids
+
+
+class MagicTreeIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str
+    subtitle: Optional[str] = ""
+    summary: Optional[str] = ""
+    content: Optional[str] = ""
+    accent_color: Optional[str] = "#FBBF24"
+    image_url: Optional[str] = ""
+    nodes: List[MagicNode] = Field(default_factory=list)
+
+
+def magic_to_out(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "slug": doc["slug"],
+        "name": doc["name"],
+        "subtitle": doc.get("subtitle", ""),
+        "summary": doc.get("summary", ""),
+        "content": doc.get("content", ""),
+        "accent_color": doc.get("accent_color", "#FBBF24"),
+        "image_url": doc.get("image_url", ""),
+        "nodes": doc.get("nodes", []),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.get("/magic/trees")
+async def list_magic_trees():
+    cursor = db.magic_trees.find({}, {"_id": 0}).sort("updated_at", -1)
+    items = await cursor.to_list(length=200)
+    return [magic_to_out(d) for d in items]
+
+
+@api.get("/magic/trees/{tree_id}")
+async def get_magic_tree(tree_id: str):
+    doc = await db.magic_trees.find_one({"$or": [{"id": tree_id}, {"slug": tree_id}]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Tree not found")
+    return magic_to_out(doc)
+
+
+@api.post("/magic/trees")
+async def create_magic_tree(body: MagicTreeIn, _user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    tid = str(uuid.uuid4())
+    base_slug = slugify(body.name)
+    slug = base_slug
+    i = 2
+    while await db.magic_trees.find_one({"slug": slug}):
+        slug = f"{base_slug}-{i}"
+        i += 1
+    doc = body.model_dump()
+    doc.update({"id": tid, "slug": slug, "created_at": now, "updated_at": now})
+    await db.magic_trees.insert_one(doc)
+    doc.pop("_id", None)
+    return magic_to_out(doc)
+
+
+@api.put("/magic/trees/{tree_id}")
+async def update_magic_tree(tree_id: str, body: MagicTreeIn, _user: dict = Depends(get_current_user)):
+    existing = await db.magic_trees.find_one({"id": tree_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Tree not found")
+    update = body.model_dump()
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    if update["name"] != existing.get("name"):
+        base_slug = slugify(update["name"])
+        slug = base_slug
+        i = 2
+        while await db.magic_trees.find_one({"slug": slug, "id": {"$ne": tree_id}}):
+            slug = f"{base_slug}-{i}"
+            i += 1
+        update["slug"] = slug
+    await db.magic_trees.update_one({"id": tree_id}, {"$set": update})
+    updated = await db.magic_trees.find_one({"id": tree_id}, {"_id": 0})
+    return magic_to_out(updated)
+
+
+@api.delete("/magic/trees/{tree_id}")
+async def delete_magic_tree(tree_id: str, _user: dict = Depends(get_current_user)):
+    res = await db.magic_trees.delete_one({"id": tree_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Tree not found")
+    return {"ok": True}
+
+
 @api.put("/entries/{entry_id}/position")
 async def set_position(entry_id: str, body: MapPositionIn, _user: dict = Depends(get_current_user)):
     existing = await db.entries.find_one({"id": entry_id})
@@ -540,6 +639,55 @@ async def seed_entries():
     logger.info("Seeded starter entries")
 
 
+SEED_MAGIC_TREES = [
+    {
+        "name": "Wickfire",
+        "subtitle": "The disciplined flame",
+        "summary": "The first and oldest of the Realm's sanctioned schools, taught in the Brass Cloister. Wickfire shapes lantern-fire into tools — for light, for warmth, for the burning of unclean things.",
+        "content": "Wickfire practitioners begin by tending a single flame for a year and a day. Only then are they shown how to shape it.",
+        "accent_color": "#FBBF24",
+        "image_url": "",
+        "nodes": [
+            {"id": "n1", "name": "Tend the Wick", "description": "The initiate's first cantrip. Light or extinguish any small flame within sight.", "icon": "Flame", "x": 0.5, "y": 0.10, "requires": []},
+            {"id": "n2", "name": "Lantern Eye", "description": "See clearly in lantern-light up to 60 feet, even through fog or smoke.", "icon": "Eye", "x": 0.28, "y": 0.32, "requires": ["n1"]},
+            {"id": "n3", "name": "Steady Flame", "description": "Your tended flames cannot be put out by wind or rain for one hour.", "icon": "Shield", "x": 0.72, "y": 0.32, "requires": ["n1"]},
+            {"id": "n4", "name": "Wayshrine Sense", "description": "You always know the direction of the nearest lit wayshrine.", "icon": "Compass", "x": 0.15, "y": 0.55, "requires": ["n2"]},
+            {"id": "n5", "name": "Ember Bolt", "description": "Hurl a mote of wickfire as a ranged attack (1d8 fire). Lights a torch on hit.", "icon": "Zap", "x": 0.42, "y": 0.55, "requires": ["n2", "n3"]},
+            {"id": "n6", "name": "Brass Ward", "description": "Trace a circle of wickfire that undead and bog-stalkers will not cross.", "icon": "Sparkles", "x": 0.85, "y": 0.55, "requires": ["n3"]},
+            {"id": "n7", "name": "Cleansing Pyre", "description": "Summon a pillar of pale fire that burns only what is unclean.", "icon": "Sun", "x": 0.5, "y": 0.82, "requires": ["n5", "n6"]},
+        ],
+    },
+    {
+        "name": "Mossblood",
+        "subtitle": "What the forest remembers",
+        "summary": "Outlawed in three kingdoms and revered in the rest. Mossblood is the magic of root, mycelium, and the long memory of trees.",
+        "content": "Practitioners drink a tea of crushed shrine-moss. Most do not return from the first dream. Those who do speak to the forests differently afterward.",
+        "accent_color": "#4A7C59",
+        "image_url": "",
+        "nodes": [
+            {"id": "m1", "name": "Greenwhisper", "description": "Speak with any plant for one minute. Most have little to say.", "icon": "Leaf", "x": 0.5, "y": 0.10, "requires": []},
+            {"id": "m2", "name": "Vine-Step", "description": "Vines and roots part to let you walk silently through dense undergrowth.", "icon": "Footprints", "x": 0.3, "y": 0.35, "requires": ["m1"]},
+            {"id": "m3", "name": "Moss-Knit", "description": "Mend a wound with a poultice of shrine-moss (heals 2d4 + tier).", "icon": "Heart", "x": 0.7, "y": 0.35, "requires": ["m1"]},
+            {"id": "m4", "name": "Long Memory", "description": "Touch a tree older than fifty years and see one event it witnessed.", "icon": "BookOpen", "x": 0.5, "y": 0.62, "requires": ["m2", "m3"]},
+            {"id": "m5", "name": "Verdant Call", "description": "Summon a host of crows, foxes, or mushroom-spites to your aid for one scene.", "icon": "Bird", "x": 0.5, "y": 0.85, "requires": ["m4"]},
+        ],
+    },
+]
+
+
+async def seed_magic_trees():
+    count = await db.magic_trees.count_documents({})
+    if count > 0:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    for t in SEED_MAGIC_TREES:
+        tid = str(uuid.uuid4())
+        slug = slugify(t["name"])
+        doc = {**t, "id": tid, "slug": slug, "created_at": now, "updated_at": now}
+        await db.magic_trees.insert_one(doc)
+    logger.info("Seeded starter magic trees")
+
+
 # ---------------- App wiring ----------------
 app.include_router(api)
 
@@ -567,8 +715,11 @@ async def on_startup():
     await db.entries.create_index("slug", unique=True)
     await db.entries.create_index("category")
     await db.dice_rolls.create_index([("created_at", -1)])
+    await db.magic_trees.create_index("id", unique=True)
+    await db.magic_trees.create_index("slug", unique=True)
     await seed_admins()
     await seed_entries()
+    await seed_magic_trees()
 
 
 @app.on_event("shutdown")
