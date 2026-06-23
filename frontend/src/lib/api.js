@@ -26,6 +26,6 @@ export const CATEGORIES = [
   { key: "character", label: "Characters", plural: "Characters", icon: "Users" },
   { key: "faction", label: "Factions", plural: "Factions", icon: "Swords" },
   { key: "lore", label: "Lore", plural: "Lore & History", icon: "BookOpen" },
-  { key: "session", label: "Sessions", plural: "Session Journal", icon: "ScrollText" },
+  { key: "session", label: "Sessions", plural: "Sessions", icon: "ScrollText" },
   { key: "bestiary", label: "Bestiary", plural: "Bestiary", icon: "Ghost" },
 ];

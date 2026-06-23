@@ -503,6 +503,114 @@ async def delete_magic_tree(tree_id: str, _user: dict = Depends(get_current_user
     return {"ok": True}
 
 
+# ---------------- Session Scheduler ----------------
+class SessionRSVP(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    player_name: str = Field(min_length=1, max_length=40)
+    status: Literal["yes", "maybe", "no"]
+    comment: Optional[str] = ""
+
+
+class SessionScheduleIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    title: str
+    scheduled_at: str  # ISO datetime
+    duration_minutes: int = 180
+    location: Optional[str] = ""
+    notes: Optional[str] = ""
+    status: Literal["planned", "cancelled", "completed"] = "planned"
+
+
+def session_to_out(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "title": doc["title"],
+        "scheduled_at": doc["scheduled_at"],
+        "duration_minutes": doc.get("duration_minutes", 180),
+        "location": doc.get("location", ""),
+        "notes": doc.get("notes", ""),
+        "status": doc.get("status", "planned"),
+        "rsvps": doc.get("rsvps", []),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.get("/sessions")
+async def list_sessions():
+    cursor = db.scheduled_sessions.find({}, {"_id": 0}).sort("scheduled_at", 1)
+    items = await cursor.to_list(length=500)
+    return [session_to_out(d) for d in items]
+
+
+@api.get("/sessions/{session_id}")
+async def get_session(session_id: str):
+    doc = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session_to_out(doc)
+
+
+@api.post("/sessions")
+async def create_session(body: SessionScheduleIn, _user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    sid = str(uuid.uuid4())
+    doc = body.model_dump()
+    doc.update({"id": sid, "rsvps": [], "created_at": now, "updated_at": now})
+    await db.scheduled_sessions.insert_one(doc)
+    doc.pop("_id", None)
+    return session_to_out(doc)
+
+
+@api.put("/sessions/{session_id}")
+async def update_session(session_id: str, body: SessionScheduleIn, _user: dict = Depends(get_current_user)):
+    existing = await db.scheduled_sessions.find_one({"id": session_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Session not found")
+    update = body.model_dump()
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.scheduled_sessions.update_one({"id": session_id}, {"$set": update})
+    updated = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    return session_to_out(updated)
+
+
+@api.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, _user: dict = Depends(get_current_user)):
+    res = await db.scheduled_sessions.delete_one({"id": session_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"ok": True}
+
+
+@api.post("/sessions/{session_id}/rsvp")
+async def post_rsvp(session_id: str, body: SessionRSVP):
+    session = await db.scheduled_sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    rsvps = [r for r in session.get("rsvps", []) if r.get("player_name", "").lower() != body.player_name.lower()]
+    rsvps.append({"player_name": body.player_name.strip(), "status": body.status, "comment": body.comment or "", "updated_at": datetime.now(timezone.utc).isoformat()})
+    await db.scheduled_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"rsvps": rsvps, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    updated = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    return session_to_out(updated)
+
+
+@api.delete("/sessions/{session_id}/rsvp")
+async def delete_rsvp(session_id: str, player_name: str):
+    session = await db.scheduled_sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    rsvps = [r for r in session.get("rsvps", []) if r.get("player_name", "").lower() != player_name.lower()]
+    await db.scheduled_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"rsvps": rsvps, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    updated = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    return session_to_out(updated)
+
+
 @api.put("/entries/{entry_id}/position")
 async def set_position(entry_id: str, body: MapPositionIn, _user: dict = Depends(get_current_user)):
     existing = await db.entries.find_one({"id": entry_id})
@@ -717,6 +825,7 @@ async def on_startup():
     await db.dice_rolls.create_index([("created_at", -1)])
     await db.magic_trees.create_index("id", unique=True)
     await db.magic_trees.create_index("slug", unique=True)
+    await db.scheduled_sessions.create_index("scheduled_at")
     await seed_admins()
     await seed_entries()
     await seed_magic_trees()

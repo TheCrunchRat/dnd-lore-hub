@@ -11,6 +11,7 @@ import WorldMap from "@/pages/WorldMap";
 import Dice from "@/pages/Dice";
 import MagicList from "@/pages/MagicList";
 import MagicTree from "@/pages/MagicTree";
+import Sessions from "@/pages/Sessions";
 import { Toaster } from "sonner";
 
 function ProtectedRoute({ children }) {
@@ -26,7 +27,6 @@ const CATEGORY_ROUTES = [
   { path: "/characters", category: "character" },
   { path: "/factions", category: "faction" },
   { path: "/lore", category: "lore" },
-  { path: "/sessions", category: "session" },
   { path: "/bestiary", category: "bestiary" },
 ];
 
@@ -38,6 +38,7 @@ function RouterShell() {
         <Route path="/login" element={<Login />} />
         <Route path="/map" element={<WorldMap />} />
         <Route path="/dice" element={<Dice />} />
+        <Route path="/sessions" element={<Sessions />} />
         <Route path="/magic" element={<MagicList />} />
         <Route path="/magic/:slug" element={<MagicTree />} />
         <Route path="/world/:slug" element={<EntryDetail />} />
