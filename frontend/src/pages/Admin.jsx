@@ -137,11 +137,19 @@ export default function Admin() {
     }
   };
 
+  const [confirmingDelete, setConfirmingDelete] = useState(null); // entry id awaiting confirm
+
   const remove = async (e) => {
-    if (!window.confirm(`Permanently erase "${e.title}" from the codex?`)) return;
+    if (confirmingDelete !== e.id) {
+      setConfirmingDelete(e.id);
+      // Auto-cancel the confirmation after 4 seconds
+      setTimeout(() => setConfirmingDelete((cur) => (cur === e.id ? null : cur)), 4000);
+      return;
+    }
+    setConfirmingDelete(null);
     try {
       await api.delete(`/entries/${e.id}`);
-      toast.success("Erased");
+      toast.success(`Erased "${e.title}"`);
       await fetchEntries();
     } catch (err) {
       toast.error(formatApiError(err));
@@ -238,9 +246,17 @@ export default function Admin() {
                 <button
                   onClick={() => remove(e)}
                   data-testid={`delete-${e.slug}`}
-                  className="p-2 text-muted-bone hover:text-red-400 transition-colors"
+                  className={`px-2 py-2 transition-colors inline-flex items-center gap-1.5 ${
+                    confirmingDelete === e.id
+                      ? "text-red-400 border border-red-400 bg-red-950/20"
+                      : "text-muted-bone hover:text-red-400"
+                  }`}
+                  title={confirmingDelete === e.id ? "Click again to confirm" : "Delete"}
                 >
                   <Trash2 className="w-4 h-4" />
+                  {confirmingDelete === e.id && (
+                    <span className="text-[10px] tracking-widest uppercase">Click to confirm</span>
+                  )}
                 </button>
               </div>
             </div>

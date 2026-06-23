@@ -62,6 +62,7 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
   const [spellsLib, setSpellsLib] = useState([]);
   const [slotsTable, setSlotsTable] = useState({});
   const [saving, setSavingState] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -139,7 +140,12 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
 
   const handleDelete = async () => {
     if (!isEdit) return;
-    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setTimeout(() => setConfirmingDelete(false), 4000);
+      return;
+    }
+    setConfirmingDelete(false);
     setSavingState(true);
     try {
       // Try the admin route first (works for DM), fall back to player route
@@ -357,8 +363,10 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
                 <ChevronLeft className="w-4 h-4"/> Back
               </button>
               {isEdit && (user || playerName) && (
-                <button onClick={handleDelete} data-testid="builder-delete" className="inline-flex items-center gap-1.5 text-xs tracking-widest uppercase text-muted-bone hover:text-red-400">
-                  <Trash2 className="w-3.5 h-3.5"/> Delete character
+                <button onClick={handleDelete} data-testid="builder-delete" className={`inline-flex items-center gap-1.5 text-xs tracking-widest uppercase transition-colors ${
+                  confirmingDelete ? "text-red-400 font-semibold" : "text-muted-bone hover:text-red-400"
+                }`}>
+                  <Trash2 className="w-3.5 h-3.5"/> {confirmingDelete ? "Click again to confirm" : "Delete character"}
                 </button>
               )}
             </div>

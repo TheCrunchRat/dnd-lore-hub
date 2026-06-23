@@ -49,10 +49,8 @@ export default function EntryDetail() {
 
   const handleDeletePC = async () => {
     if (!entry) return;
-    if (!window.confirm(`Delete "${entry.title}" from the codex? This cannot be undone.`)) return;
     try {
       if (isAdmin) {
-        // DMs use the admin route which doesn't need a player_name and bypasses ownership
         await api.delete(`/entries/${entry.id}`);
       } else {
         const params = {};
@@ -65,6 +63,16 @@ export default function EntryDetail() {
     } catch (e) {
       toast.error(formatApiError(e));
     }
+  };
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const triggerDelete = () => {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setTimeout(() => setConfirmingDelete(false), 4000);
+      return;
+    }
+    setConfirmingDelete(false);
+    handleDeletePC();
   };
 
   useEffect(() => {
@@ -139,11 +147,13 @@ export default function EntryDetail() {
                 <Pencil className="w-3.5 h-3.5" /> Edit character
               </button>
               <button
-                onClick={handleDeletePC}
+                onClick={triggerDelete}
                 data-testid="owner-delete-btn"
-                className="inline-flex items-center gap-1.5 text-muted-bone hover:text-red-400"
+                className={`inline-flex items-center gap-1.5 transition-colors ${
+                  confirmingDelete ? "text-red-400 font-semibold" : "text-muted-bone hover:text-red-400"
+                }`}
               >
-                <Trash2 className="w-3.5 h-3.5" /> Delete
+                <Trash2 className="w-3.5 h-3.5" /> {confirmingDelete ? "Click again to confirm" : "Delete"}
               </button>
             </div>
           )}
