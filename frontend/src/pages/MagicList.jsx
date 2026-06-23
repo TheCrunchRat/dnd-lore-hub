@@ -24,6 +24,8 @@ export default function MagicList() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState("origin");
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -41,9 +43,10 @@ export default function MagicList() {
     [trees, tab]
   );
 
+  const openNew = () => { setNewName(""); setShowNew(true); };
   const createNew = async () => {
-    const name = window.prompt(`Name your new ${cat.singular.toLowerCase()}:`);
-    if (!name) return;
+    const name = newName.trim();
+    if (!name) { toast.error("Give it a name first"); return; }
     setCreating(true);
     try {
       const { data } = await api.post("/magic/trees", {
@@ -51,6 +54,7 @@ export default function MagicList() {
         accent_color: "#FBBF24", nodes: [],
         tree_category: tab,
       });
+      setShowNew(false);
       navigate(`/magic/${data.slug}`);
     } catch (e) { toast.error(formatApiError(e)); }
     finally { setCreating(false); }
@@ -74,7 +78,7 @@ export default function MagicList() {
         </div>
         {user && (
           <button
-            onClick={createNew}
+            onClick={openNew}
             disabled={creating}
             data-testid="new-tree-btn"
             className="inline-flex items-center gap-2 px-5 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] transition-colors disabled:opacity-50"
@@ -145,6 +149,42 @@ export default function MagicList() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {showNew && (
+        <div className="fixed inset-0 z-50 bg-[#0B0E0C]/80 backdrop-blur-sm flex items-center justify-center px-4" onClick={() => setShowNew(false)} data-testid="new-tree-modal">
+          <div className="lantern-card vine-frame p-8 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="text-[10px] tracking-[0.35em] uppercase text-lantern mb-2">{cat?.overline}</div>
+            <h2 className="font-serif-display text-2xl text-bone mb-4">Name your new {cat?.singular.toLowerCase()}</h2>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") createNew(); }}
+              placeholder={tab === "foundation" ? "e.g. The Hollow Crown" : tab === "class" ? "e.g. Wickwarden" : "e.g. Hollowsong"}
+              autoFocus
+              data-testid="new-tree-name-input"
+              className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none mb-5"
+            />
+            <div className="flex items-center gap-2 justify-end">
+              <button
+                onClick={() => setShowNew(false)}
+                data-testid="cancel-new-tree"
+                className="px-4 py-2 text-xs tracking-widest uppercase text-muted-bone hover:text-bone"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createNew}
+                disabled={creating || !newName.trim()}
+                data-testid="confirm-new-tree"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#FBBF24] text-[#0B0E0C] font-semibold text-sm tracking-widest uppercase hover:bg-[#F59E0B] disabled:opacity-50"
+              >
+                {creating ? "Creating…" : "Create"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
