@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import api, { CATEGORIES } from "../lib/api";
 import { SectionHeader, EntryCard, EmptyState } from "../components/CodexBits";
 import { useAuth } from "../contexts/AuthContext";
-import { Search } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
+import PCEditor from "../components/PCEditor";
 
 const COPY = {
   location: {
@@ -52,6 +53,7 @@ export default function CategoryList({ category, basePath }) {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [charTab, setCharTab] = useState("pc"); // characters-only tab
+  const [pcEditorOpen, setPcEditorOpen] = useState(false);
 
   const cat = useMemo(() => CATEGORIES.find((c) => c.key === category), [category]);
   const copy = COPY[category] || COPY.location;
@@ -103,8 +105,8 @@ export default function CategoryList({ category, basePath }) {
     <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20" data-testid={`page-${category}`}>
       <SectionHeader overline={copy.overline} title={copy.title} subtitle={copy.subtitle} />
 
-      <div className="flex items-center gap-3 mb-6 max-w-md">
-        <div className="relative flex-1">
+      <div className="flex items-center gap-3 mb-6 max-w-2xl flex-wrap">
+        <div className="relative flex-1 min-w-[240px]">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-bone" />
           <input
             type="text"
@@ -115,6 +117,16 @@ export default function CategoryList({ category, basePath }) {
             className="w-full pl-10 pr-3 py-2.5 bg-stone-deep border border-rust text-bone placeholder:text-muted-bone focus:border-[#FBBF24] focus:outline-none transition-colors"
           />
         </div>
+        {isCharacterPage && (
+          <button
+            onClick={() => setPcEditorOpen(true)}
+            data-testid="create-pc-btn"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#FBBF24] text-[#0B0E0C] font-semibold text-sm tracking-wide hover:bg-[#F59E0B] transition-colors"
+          >
+            <UserPlus className="w-4 h-4" />
+            Create your character
+          </button>
+        )}
       </div>
 
       {isCharacterPage && (
@@ -151,6 +163,22 @@ export default function CategoryList({ category, basePath }) {
             <EntryCard key={e.id} entry={e} basePath={basePath} />
           ))}
         </div>
+      )}
+
+      {isCharacterPage && (
+        <PCEditor
+          open={pcEditorOpen}
+          onClose={() => setPcEditorOpen(false)}
+          onSaved={(saved) => {
+            // refresh list and jump to PC tab
+            setCharTab("pc");
+            api.get("/entries", { params: { category, q: q || undefined } })
+              .then((r) => setEntries(r.data || []))
+              .then(() => {
+                if (saved?.slug) navigate(`${basePath}/${saved.slug}`);
+              });
+          }}
+        />
       )}
     </div>
   );

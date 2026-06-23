@@ -611,6 +611,130 @@ async def delete_rsvp(session_id: str, player_name: str):
     return session_to_out(updated)
 
 
+# ---------------- Player-Owned PCs (Public, ownership by player_name) ----------------
+class PlayerCharacterIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    player_name: str = Field(min_length=1, max_length=40)
+    name: str = Field(min_length=1, max_length=80)
+    subtitle: Optional[str] = ""
+    summary: Optional[str] = ""
+    content: Optional[str] = ""
+    image_url: Optional[str] = ""
+    race: Optional[str] = ""
+    char_class: Optional[str] = ""
+    level: Optional[int] = 1
+    alignment: Optional[str] = ""
+    pronouns: Optional[str] = ""
+
+
+async def _is_admin(request: Request) -> bool:
+    try:
+        await get_current_user(request)
+        return True
+    except HTTPException:
+        return False
+
+
+@api.post("/pcs")
+async def create_pc(body: PlayerCharacterIn):
+    now = datetime.now(timezone.utc).isoformat()
+    eid = str(uuid.uuid4())
+    base_slug = slugify(body.name)
+    slug = base_slug
+    i = 2
+    while await db.entries.find_one({"slug": slug}):
+        slug = f"{base_slug}-{i}"
+        i += 1
+
+    metadata = {
+        "role": "PC",
+        "owner": body.player_name.strip(),
+        "race": body.race or "",
+        "class": body.char_class or "",
+        "level": body.level or 1,
+        "alignment": body.alignment or "",
+        "pronouns": body.pronouns or "",
+    }
+    # Strip empty values from metadata for cleanliness
+    metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
+
+    doc = {
+        "id": eid,
+        "slug": slug,
+        "category": "character",
+        "title": body.name.strip(),
+        "subtitle": body.subtitle or "",
+        "summary": body.summary or "",
+        "content": body.content or "",
+        "image_url": body.image_url or "",
+        "tags": ["pc", "player-character"],
+        "metadata": metadata,
+        "pinned": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.entries.insert_one(doc)
+    doc.pop("_id", None)
+    return entry_to_out(doc)
+
+
+@api.put("/pcs/{entry_id}")
+async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
+    existing = await db.entries.find_one({"id": entry_id, "category": "character"})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Character not found")
+    owner = (existing.get("metadata") or {}).get("owner", "")
+    is_admin = await _is_admin(request)
+    if not is_admin and owner.lower() != body.player_name.strip().lower():
+        raise HTTPException(status_code=403, detail="Only the character's player or a DM can edit this character")
+
+    metadata = {**(existing.get("metadata") or {})}
+    metadata.update({
+        "role": "PC",
+        "owner": owner or body.player_name.strip(),  # preserve existing owner unless empty
+        "race": body.race or metadata.get("race", ""),
+        "class": body.char_class or metadata.get("class", ""),
+        "level": body.level if body.level is not None else metadata.get("level", 1),
+        "alignment": body.alignment or metadata.get("alignment", ""),
+        "pronouns": body.pronouns or metadata.get("pronouns", ""),
+    })
+    metadata = {k: v for k, v in metadata.items() if v not in ("", None)}
+
+    update = {
+        "title": body.name.strip(),
+        "subtitle": body.subtitle or "",
+        "summary": body.summary or "",
+        "content": body.content or "",
+        "image_url": body.image_url or "",
+        "metadata": metadata,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if update["title"] != existing.get("title"):
+        base_slug = slugify(update["title"])
+        slug = base_slug
+        i = 2
+        while await db.entries.find_one({"slug": slug, "id": {"$ne": entry_id}}):
+            slug = f"{base_slug}-{i}"
+            i += 1
+        update["slug"] = slug
+    await db.entries.update_one({"id": entry_id}, {"$set": update})
+    updated = await db.entries.find_one({"id": entry_id}, {"_id": 0})
+    return entry_to_out(updated)
+
+
+@api.delete("/pcs/{entry_id}")
+async def delete_pc(entry_id: str, player_name: str, request: Request):
+    existing = await db.entries.find_one({"id": entry_id, "category": "character"})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Character not found")
+    owner = (existing.get("metadata") or {}).get("owner", "")
+    is_admin = await _is_admin(request)
+    if not is_admin and owner.lower() != player_name.strip().lower():
+        raise HTTPException(status_code=403, detail="Only the character's player or a DM can delete this character")
+    await db.entries.delete_one({"id": entry_id})
+    return {"ok": True}
+
+
 @api.put("/entries/{entry_id}/position")
 async def set_position(entry_id: str, body: MapPositionIn, _user: dict = Depends(get_current_user)):
     existing = await db.entries.find_one({"id": entry_id})

@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import api, { CATEGORIES } from "../lib/api";
-import { ArrowLeft, Calendar, Pencil } from "lucide-react";
+import api, { CATEGORIES, formatApiError } from "../lib/api";
+import { ArrowLeft, Calendar, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import PCEditor from "../components/PCEditor";
+import { toast } from "sonner";
+
+const NAME_KEY = "lantern.diceName";
 
 const CAT_PATH = {
   overview: "/world",
@@ -21,6 +25,25 @@ export default function EntryDetail() {
   const [entry, setEntry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState([]);
+  const [pcEditorOpen, setPcEditorOpen] = useState(false);
+  const playerName = (typeof window !== "undefined" && localStorage.getItem(NAME_KEY)) || "";
+  const isOwnedByMe =
+    entry?.category === "character" &&
+    entry?.metadata?.role === "PC" &&
+    !!entry?.metadata?.owner &&
+    !!playerName &&
+    entry.metadata.owner.toLowerCase() === playerName.toLowerCase();
+
+  const handleDeletePC = async () => {
+    if (!window.confirm(`Delete ${entry.title} from the codex?`)) return;
+    try {
+      await api.delete(`/pcs/${entry.id}`, { params: { player_name: playerName } });
+      toast.success("Character removed");
+      navigate("/characters");
+    } catch (e) {
+      toast.error(formatApiError(e));
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -93,6 +116,24 @@ export default function EntryDetail() {
               <Pencil className="w-3.5 h-3.5" /> Edit
             </button>
           )}
+          {!user && isOwnedByMe && (
+            <div className="inline-flex items-center gap-3 ml-auto" data-testid="owner-controls">
+              <button
+                onClick={() => setPcEditorOpen(true)}
+                data-testid="owner-edit-btn"
+                className="inline-flex items-center gap-1.5 text-lantern hover:underline"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Edit your character
+              </button>
+              <button
+                onClick={handleDeletePC}
+                data-testid="owner-delete-btn"
+                className="inline-flex items-center gap-1.5 text-muted-bone hover:text-red-400"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete
+              </button>
+            </div>
+          )}
         </div>
 
         {entry.summary && (
@@ -135,6 +176,16 @@ export default function EntryDetail() {
           </div>
         )}
       </div>
+
+      <PCEditor
+        open={pcEditorOpen}
+        onClose={() => setPcEditorOpen(false)}
+        existing={entry}
+        onSaved={(saved) => {
+          setEntry(saved);
+          if (saved.slug && saved.slug !== slug) navigate(`/characters/${saved.slug}`, { replace: true });
+        }}
+      />
     </article>
   );
 }
