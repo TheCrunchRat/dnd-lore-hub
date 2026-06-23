@@ -1,55 +1,72 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import Layout from "@/components/Layout";
+import Home from "@/pages/Home";
+import CategoryList from "@/pages/CategoryList";
+import EntryDetail from "@/pages/EntryDetail";
+import Login from "@/pages/Login";
+import Admin from "@/pages/Admin";
+import { Toaster } from "sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+function ProtectedRoute({ children }) {
+  const { user, checking } = useAuth();
+  const location = useLocation();
+  if (checking) return <div className="min-h-[60vh] flex items-center justify-center text-muted-bone">Lighting the lantern…</div>;
+  if (!user) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname + location.search)}`} replace />;
+  return children;
+}
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+const CATEGORY_ROUTES = [
+  { path: "/locations", category: "location" },
+  { path: "/characters", category: "character" },
+  { path: "/factions", category: "faction" },
+  { path: "/lore", category: "lore" },
+  { path: "/sessions", category: "session" },
+  { path: "/bestiary", category: "bestiary" },
+];
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
+function RouterShell() {
   return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/world/:slug" element={<EntryDetail />} />
+
+        {CATEGORY_ROUTES.map(({ path, category }) => (
+          <React.Fragment key={path}>
+            <Route path={path} element={<CategoryList category={category} basePath={path} />} />
+            <Route path={`${path}/:slug`} element={<EntryDetail />} />
+          </React.Fragment>
+        ))}
+
+        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
   );
-};
+}
 
 function App() {
   return (
-    <div className="App">
+    <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
+        <RouterShell />
+        <Toaster
+          theme="dark"
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: "#151B17",
+              border: "1px solid #2C362F",
+              color: "#E6E3D8",
+              fontFamily: "Manrope, sans-serif",
+            },
+          }}
+        />
       </BrowserRouter>
-    </div>
+    </AuthProvider>
   );
 }
 

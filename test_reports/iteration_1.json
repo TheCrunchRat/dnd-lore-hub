@@ -1,0 +1,45 @@
+{
+  "summary": "First-finish smoke test for Lantern Realm Codex. Backend public endpoints, auth (DM + Co-DM), protected CRUD, and full frontend flow (home, category nav, search, detail, login, admin create/edit/pin/delete, logout) all pass functionally. One real backend bug: /api/auth/logout uses response.delete_cookie() with default SameSite=Lax (no Secure flag), while login sets SameSite=None+Secure cookies. Browsers and curl treat the deletion as a different cookie, so the httpOnly access_token is never cleared — the user remains authenticated via cookies until the JWT expires. Frontend masks this with local state clearing, but server-side session is not actually invalidated.",
+  "tested_scope": ["frontend", "backend", "auth", "integration"],
+  "passed": [
+    "GET /api/entries returns 7 seeded entries with pinned-first ordering (the-lantern-realm, mirewatch, the-order-of-wicks pinned)",
+    "GET /api/entries?category=location returns only Mirewatch",
+    "GET /api/entries/mirewatch resolves by slug; unknown slug returns 404",
+    "GET /api/stats returns {overview:1, location:1, character:1, faction:1, lore:1, session:1, bestiary:1}",
+    "POST /api/auth/login DM credentials -> 200, user JSON, access_token+refresh_token cookies set",
+    "POST /api/auth/login wrong password -> 401",
+    "POST /api/auth/login Co-DM credentials -> 200",
+    "GET /api/auth/me with cookies -> 200; without cookies -> 401",
+    "POST /api/entries without auth -> 401; with auth -> 200 creates entry and appears in GET /api/entries",
+    "PUT /api/entries/{id} (full EntryIn body) updates fields with auth",
+    "DELETE /api/entries/{id} returns 200 with auth",
+    "Frontend home renders home-page, cta-explore, all six tome-{category} cards",
+    "Nav to /locations, /characters, /factions, /lore, /sessions, /bestiary each show their seeded entry-card-{slug}",
+    "Search 'mire' on /locations filters to a single Mirewatch card",
+    "Click Mirewatch card -> /locations/mirewatch shows detail-mirewatch; back-link returns to list",
+    "/admin redirects to /login when anonymous; DM login navigates to admin-page",
+    "Admin new-entry-btn opens editor-drawer; creating 'Thorne the Quick' (character) shows row-thorne-the-quick in admin list",
+    "Edit and pin actions on the new row succeed (drawer pre-fills, save updates list, pin toggles)",
+    "Admin delete removes the row",
+    "logout-btn clears local auth state; login-link reappears in header"
+  ],
+  "failed": [
+    {
+      "area": "backend / auth / logout cookie clearing",
+      "issue": "/api/auth/logout sets Set-Cookie with SameSite=Lax and no Secure flag, but login uses SameSite=None; Secure. The mismatched attributes mean clients (browsers + curl) do not overwrite/remove the original cookie. Verified: after POST /api/auth/logout the access_token cookie remains in curl's cookie jar and GET /api/auth/me still returns 200 with that cookie. Server-side the JWT remains valid until expiry.",
+      "evidence": "Set-Cookie headers from logout: 'access_token=\"\"; ... SameSite=lax' (no Secure). Original login Set-Cookie: 'access_token=...; Secure; SameSite=none'. After logout, /api/auth/me with the same jar -> 200 returning DM user.",
+      "priority": "HIGH"
+    }
+  ],
+  "action_items": [
+    "In /app/backend/server.py clear_auth_cookies(): call response.delete_cookie('access_token', path='/', samesite='none', secure=True) and same for refresh_token so the attributes match the cookie that was set, allowing browsers/curl to actually remove them. Alternatively set both cookies to empty value with Max-Age=0, Secure=True, SameSite='none'."
+  ],
+  "success_rate": {"backend": "92%", "frontend": "100%"},
+  "retest_needed": true,
+  "full_testing_deferred": true,
+  "notes": [
+    "PUT /api/entries/{id} requires the full EntryIn body (category, title, summary mandatory) — initial partial PUT returned 422. Confirmed by-design; frontend Admin editor sends full payload.",
+    "Public pages trigger /api/auth/me which returns 401 for anonymous visitors — expected (AuthContext probe), produces harmless console 401s.",
+    "Credentials file /app/memory/test_credentials.md present and accurate."
+  ]
+}
