@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Save, ChevronLeft, ChevronRight, Dices, Shuffle, Plus, Minus } from "lucide-react";
+import { X, Save, ChevronLeft, ChevronRight, Dices, Shuffle, Plus, Minus, Trash2 } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
@@ -133,6 +133,24 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
       localStorage.setItem(NAME_KEY, playerName);
       toast.success(isEdit ? "Character updated" : "Character forged");
       onSaved?.(data); onClose();
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setSavingState(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!isEdit) return;
+    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+    setSavingState(true);
+    try {
+      // Try the admin route first (works for DM), fall back to player route
+      if (user?.role === "admin") {
+        await api.delete(`/entries/${existing.id}`);
+      } else {
+        await api.delete(`/pcs/${existing.id}`, { params: playerName ? { player_name: playerName } : {} });
+      }
+      toast.success("Character deleted");
+      onSaved?.({ _deleted: true, id: existing.id });
+      onClose();
     } catch (e) { toast.error(formatApiError(e)); }
     finally { setSavingState(false); }
   };
@@ -333,10 +351,17 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
             )}
           </div>
 
-          <div className="sticky bottom-0 bg-stone-deep border-t border-rust px-6 py-4 flex items-center justify-between">
-            <button onClick={() => setStep(Math.max(0, step-1))} disabled={step === 0} className="inline-flex items-center gap-2 text-xs tracking-widest uppercase text-muted-bone hover:text-bone disabled:opacity-30" data-testid="builder-back">
-              <ChevronLeft className="w-4 h-4"/> Back
-            </button>
+          <div className="sticky bottom-0 bg-stone-deep border-t border-rust px-6 py-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <button onClick={() => setStep(Math.max(0, step-1))} disabled={step === 0} className="inline-flex items-center gap-2 text-xs tracking-widest uppercase text-muted-bone hover:text-bone disabled:opacity-30" data-testid="builder-back">
+                <ChevronLeft className="w-4 h-4"/> Back
+              </button>
+              {isEdit && (user || playerName) && (
+                <button onClick={handleDelete} data-testid="builder-delete" className="inline-flex items-center gap-1.5 text-xs tracking-widest uppercase text-muted-bone hover:text-red-400">
+                  <Trash2 className="w-3.5 h-3.5"/> Delete character
+                </button>
+              )}
+            </div>
             <div className="text-[10px] tracking-widest uppercase text-muted-bone">Step {step+1} of {STEPS.length}</div>
             {step < STEPS.length - 1 ? (
               <button onClick={() => setStep(Math.min(STEPS.length-1, step+1))} className="inline-flex items-center gap-2 text-xs tracking-widest uppercase text-lantern hover:underline" data-testid="builder-next">

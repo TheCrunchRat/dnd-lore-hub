@@ -30,20 +30,36 @@ export default function EntryDetail() {
   const [pcEditorOpen, setPcEditorOpen] = useState(false);
   const playerName = (typeof window !== "undefined" && localStorage.getItem(NAME_KEY)) || "";
   const isPC = entry?.category === "character" && entry?.metadata?.role === "PC";
+  const isAdmin = !!user && user.role === "admin";
   const ownedByUser = !!user && !!entry?.metadata?.user_id && entry.metadata.user_id === user.id;
   const ownedByName =
     isPC &&
     !!entry?.metadata?.owner &&
     !!playerName &&
     entry.metadata.owner.toLowerCase() === playerName.toLowerCase();
-  const isOwnedByMe = isPC && (ownedByUser || ownedByName);
+  // A signed-in user with a matching name (case-insensitive) can also claim — useful when PCs
+  // were created before the account was made.
+  const ownedByUserName =
+    !!user &&
+    isPC &&
+    !!entry?.metadata?.owner &&
+    entry.metadata.owner.toLowerCase() === user.name.toLowerCase();
+  const isOwnedByMe = isPC && (ownedByUser || ownedByName || ownedByUserName);
+  const canEdit = isPC && (isAdmin || isOwnedByMe);
 
   const handleDeletePC = async () => {
-    if (!window.confirm(`Delete ${entry.title} from the codex?`)) return;
+    if (!entry) return;
+    if (!window.confirm(`Delete "${entry.title}" from the codex? This cannot be undone.`)) return;
     try {
-      await api.delete(`/pcs/${entry.id}`, {
-        params: playerName ? { player_name: playerName } : {},
-      });
+      if (isAdmin) {
+        // DMs use the admin route which doesn't need a player_name and bypasses ownership
+        await api.delete(`/entries/${entry.id}`);
+      } else {
+        const params = {};
+        if (playerName) params.player_name = playerName;
+        else if (user?.name) params.player_name = user.name;
+        await api.delete(`/pcs/${entry.id}`, { params });
+      }
       toast.success("Character removed");
       navigate("/characters");
     } catch (e) {
@@ -113,23 +129,14 @@ export default function EntryDetail() {
           {entry.tags?.map((t) => (
             <span key={t} className="border border-rust px-2 py-0.5 uppercase tracking-wider">{t}</span>
           ))}
-          {user && user.role === "admin" && (
-            <button
-              onClick={() => navigate(`/admin?edit=${entry.id}`)}
-              data-testid="edit-btn"
-              className="inline-flex items-center gap-1.5 text-lantern hover:underline ml-auto"
-            >
-              <Pencil className="w-3.5 h-3.5" /> Edit
-            </button>
-          )}
-          {isOwnedByMe && (!user || user.role !== "admin") && (
+          {canEdit && (
             <div className="inline-flex items-center gap-3 ml-auto" data-testid="owner-controls">
               <button
                 onClick={() => setPcEditorOpen(true)}
                 data-testid="owner-edit-btn"
                 className="inline-flex items-center gap-1.5 text-lantern hover:underline"
               >
-                <Pencil className="w-3.5 h-3.5" /> Edit your character
+                <Pencil className="w-3.5 h-3.5" /> Edit character
               </button>
               <button
                 onClick={handleDeletePC}
@@ -139,6 +146,15 @@ export default function EntryDetail() {
                 <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
             </div>
+          )}
+          {!isPC && isAdmin && (
+            <button
+              onClick={() => navigate(`/admin?edit=${entry.id}`)}
+              data-testid="edit-btn"
+              className="inline-flex items-center gap-1.5 text-lantern hover:underline ml-auto"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit
+            </button>
           )}
         </div>
 
@@ -192,6 +208,10 @@ export default function EntryDetail() {
         onClose={() => setPcEditorOpen(false)}
         existing={entry}
         onSaved={(saved) => {
+          if (saved?._deleted) {
+            navigate("/characters");
+            return;
+          }
           setEntry(saved);
           if (saved.slug && saved.slug !== slug) navigate(`/characters/${saved.slug}`, { replace: true });
         }}
