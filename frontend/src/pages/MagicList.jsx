@@ -4,6 +4,7 @@ import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { Sparkles, Plus, ChevronRight, Star, BookOpen, Swords } from "lucide-react";
 import { toast } from "sonner";
+import MagicBackdrop from "../components/MagicBackdrop";
 
 const CATEGORIES = [
   { key: "origin", label: "Origin Magic", singular: "School", icon: Sparkles,
@@ -61,7 +62,9 @@ export default function MagicList() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16" data-testid="magic-list-page">
+    <div className="relative" data-testid="magic-list-page">
+      <MagicBackdrop side="right" />
+      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 py-16">
       <div className="flex items-start justify-between flex-wrap gap-4 mb-10">
         <div>
           <div className="flex items-center gap-3 mb-3">
@@ -187,6 +190,7 @@ export default function MagicList() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

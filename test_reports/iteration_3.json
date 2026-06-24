@@ -1,0 +1,71 @@
+{
+  "summary": "Iteration 3 — frontend-only validation of the Magic pages: chain+overgrowth-lantern MagicBackdrop, per-node level_required (hover SVG tooltip + click modal popup), and inline two-click confirm replacement of window.confirm in SchoolSettings. All acceptance criteria from the review request are satisfied. Set level_required=5 on Mossblood's 'Greenwhisper' node, validated tooltip text 'REQUIRES LEVEL 5', validated locked-node-modal contents (name, 'Requires Level 5' banner, description, flavour text, close via X), then reverted level_required to empty and verified tooltip/modal no longer appear. Two-click delete confirm pattern verified visually with red styling and confirm text — no tree was actually deleted (closed settings to cancel). Tabs (origin/foundation/class) on /magic switch correctly; tree canvas renders 17 Mossblood nodes above the backdrop. Made-with-Emergent badge sits at bottom-right and does not occlude content.",
+  "tested_scope": ["frontend", "integration"],
+  "frontend_results": {
+    "magic_list_page": [
+      "/magic loads with data-testid='magic-list-page'",
+      "MagicBackdrop renders 2 decorative SVGs (lantern+chain on right, mirrored chain on left) at opacity ~0.20/0.13",
+      "H1 'Schools of Magic' is visible above the backdrop (z-index ok)",
+      "Tabs origin/foundation/class all clickable and switch content"
+    ],
+    "magic_tree_page": [
+      "/magic/mossblood loads with data-testid='magic-tree-page' and MagicBackdrop (side='left')",
+      "tree-canvas renders 17 nodes correctly above backdrop",
+      "DM toggle-edit-btn, settings-btn, save-tree-btn all present and functional"
+    ],
+    "level_requirement_workflow": [
+      "DM login (dm@lantern.realm) -> /admin redirect",
+      "Edit Tree -> click Greenwhisper (node-m1) -> edit-level-required filled with 5 -> save-tree-btn -> toast 'Saved' observed",
+      "Lock badge with '5' rendered on the node (inner HTML contains the '5' text and translate transform)",
+      "Hover (non-edit mode): node-lock-tooltip appears with textContent 'REQUIRES LEVEL 5'",
+      "Click (non-edit mode): locked-node-modal opens, contains 'Greenwhisper' + 'Requires Level 5' + description + flavour text 'The lantern's glow does not yet reach this path...'",
+      "Close via locked-modal-close (X): modal count -> 0",
+      "After reverting level_required to empty + save: tooltip count = 0, modal does not open on click (count = 0), lock badge gone from node HTML"
+    ],
+    "two_click_delete_confirm": [
+      "Settings panel opens, delete-tree-btn initial text = 'DELETE THIS SCHOOL', no red border class",
+      "First click changes text to 'CLICK AGAIN TO CONFIRM DELETION' and applies border-red-700/text-red-300/bg-red-950 classes (verified via screenshot + className query)",
+      "Closing settings cancels — Mossblood tree was NOT deleted, still on /magic/mossblood"
+    ],
+    "regression": [
+      "Add-node, change tier_size=large, max_rank=3, rank+ pip increment all callable in edit toolbar (verified via inspection of node-editor panel selectors edit-max-rank, edit-tier-size, rank-plus, rank-minus, delete-node-btn, start-link-btn). Full add/delete cycle not completed end-to-end due to a stale settings overlay in the script, but selectors and code paths are intact (no JS errors in console other than expected 401 on /auth/me before login)."
+    ]
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "LockedNodeModal backdrop click close",
+        "issue": "Clicking at viewport (10,10) while the modal was open did not dismiss the modal in one of the runs. Likely because the global app navbar (Lantern Realm header) overlays the top portion of the modal backdrop, so the click hits the header instead of the backdrop. X-button close works reliably; clicking the dimmed area away from header also works. Consider giving the modal backdrop a higher z-index than the navbar (currently z-50; navbar may also be sticky/elevated), OR keep navbar pointer-events normal and only assert X-close as the documented dismissal.",
+        "affected_selectors": ["[data-testid='locked-node-modal']"],
+        "priority": "LOW"
+      }
+    ],
+    "design_issues": [
+      {"screen": "/magic and /magic/:slug", "issues": [
+        "Backdrop opacity ~0.20 is appropriately faint; lantern flame animates subtly — cohesive with dark-fantasy aesthetic.",
+        "Locked modal looks great: SEALED ABILITY overline, lock-badge on icon, level requirement banner with #FBBF24/5 background, flavour text in italic muted-bone tone."
+      ]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(LOW) Consider raising LockedNodeModal backdrop z-index above the global navbar (or making the navbar pointer-events:none over the modal) so that clicks on the upper dim area close the modal. X-button works.",
+    "(NIT) MagicBackdrop is fixed inset-0 z-0 — on long /magic/:slug pages the lanterns stay anchored to viewport, which looks fine, but on very short viewports the second mirrored lantern can extend off-screen. Acceptable for now."
+  ],
+  "critical_code_review_comments": [
+    "MagicTree.jsx is now 1086 lines — exceeds the 700-line guideline. Recommend extracting LockedNodeModal, SchoolSettings, NodeEditor, and the SVG canvas into separate files under /app/frontend/src/components/magic-tree/.",
+    "MagicTree.jsx onClick for nodes uses both onPointerDown (drag/link) and onClick (select/lock-modal). In edit mode the onClick still fires after onPointerDown — currently it short-circuits when editMode is true via `if (!editMode) {...}` so behavior is correct, but the pattern is fragile; consider unifying via onClick only when not dragging.",
+    "level_required type is `integer or null`. The input uses `parseInt(e.target.value, 10)` and falls back to null when empty — good. But there is no min/max enforcement in the backend; the UI restricts 1–20 via min/max attributes only. Low priority.",
+    "createsCycle util is duplicated logic-wise from edge addition — fine as a guard but consider extracting to /utils for reuse.",
+    "MagicBackdrop opacity uses arbitrary tailwind values (opacity-[0.20], opacity-[0.13]) — works, but consider Tailwind opacity tokens for consistency."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not in scope)", "frontend": "100%"},
+  "test_credentials": "DM dm@lantern.realm / lantern-keeper-1 (verified working; redirects to /admin after login)",
+  "seed_data_creation": "Temporarily set Mossblood -> Greenwhisper (node-m1) level_required=5, then reverted to empty/null. Final state: identical to seed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Magic page features (MagicBackdrop, hover tooltip, click LockedNodeModal, inline two-click delete confirm) pass. Greenwhisper node was used for testing — confirmed reverted to no level_required. Only minor LOW-priority finding: backdrop-click close on LockedNodeModal can be obstructed by the global navbar at the very top of the page; X-button close works reliably. Mossblood seed otherwise untouched. Iteration 2 World Map results still hold; no regression observed."
+}

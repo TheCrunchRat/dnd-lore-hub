@@ -458,6 +458,8 @@ class MagicNode(BaseModel):
     color: Optional[str] = None
     # Optional per-rank descriptions ("rank 1: …", "rank 2: …")
     rank_descriptions: Optional[List[str]] = Field(default_factory=list)
+    # Minimum character level required to unlock this node
+    level_required: Optional[int] = None
 
 
 class MagicTreeIn(BaseModel):

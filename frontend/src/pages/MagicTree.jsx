@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import * as Icons from "lucide-react";
-import { ArrowLeft, Plus, Save, X, Pencil, Trash2, Link2, Unlink, Settings2, Minus } from "lucide-react";
+import { ArrowLeft, Plus, Save, X, Pencil, Trash2, Link2, Unlink, Settings2, Minus, Lock } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
+import MagicBackdrop from "../components/MagicBackdrop";
 
 const CANVAS_W = 1400;
 const CANVAS_H = 1000;
@@ -17,6 +18,12 @@ const ICON_OPTIONS = [
   "Sparkles", "Flame", "Eye", "Shield", "Compass", "Zap", "Sun", "Moon", "Star",
   "Leaf", "Footprints", "Heart", "BookOpen", "Bird", "Skull", "Swords", "Wand",
   "Snowflake", "Droplet", "Wind", "Mountain", "Trees", "Bone", "Crown", "Key",
+  "Sword", "Axe", "Hammer", "Bow", "Target", "Anchor", "Feather", "Cross",
+  "Castle", "Gem", "Coins", "Scroll", "Lock", "Unlock", "Hourglass", "Map",
+  "Telescope", "Cloud", "CloudLightning", "CloudRain", "Sunrise", "Sunset",
+  "Crosshair", "Aperture", "Atom", "Bug", "Cat", "Dog", "Egg", "Fish",
+  "Flower2", "GitBranch", "Globe", "Hand", "Hexagon", "Lightbulb", "Music",
+  "Pickaxe", "Pyramid", "Rocket", "Ship", "Spade", "TentTree", "Trophy",
 ];
 
 function uid() {
@@ -45,6 +52,8 @@ export default function MagicTree() {
   const [draggingId, setDraggingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [lockedModalNode, setLockedModalNode] = useState(null); // popup when player clicks a locked node
+  const [confirmDeleteSchool, setConfirmDeleteSchool] = useState(false); // inline confirm for school delete
   const svgRef = useRef(null);
 
   // ---------- Load ----------
@@ -218,7 +227,9 @@ export default function MagicTree() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-10 py-12" data-testid="magic-tree-page">
+    <div className="relative" data-testid="magic-tree-page-wrap">
+      <MagicBackdrop side="left" />
+      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 py-12" data-testid="magic-tree-page">
       <Link to="/magic" className="inline-flex items-center gap-2 text-xs tracking-[0.3em] uppercase text-muted-bone hover:text-lantern mb-6" data-testid="back-to-magic">
         <ArrowLeft className="w-3.5 h-3.5" /> Back to the Atlas
       </Link>
@@ -402,7 +413,13 @@ export default function MagicTree() {
                   onPointerDown={(e) => onPointerDownNode(e, n.id)}
                   onPointerEnter={() => setHoveredNodeId(n.id)}
                   onPointerLeave={() => setHoveredNodeId(null)}
-                  onClick={(e) => { if (!editMode) { e.stopPropagation(); setSelectedNodeId(n.id); } }}
+                  onClick={(e) => {
+                    if (!editMode) {
+                      e.stopPropagation();
+                      setSelectedNodeId(n.id);
+                      if (n.level_required) setLockedModalNode(n);
+                    }
+                  }}
                   data-testid={`node-${n.id}`}
                 >
                   <circle r={isSelected || isHovered ? r + 18 : r + 10} fill="url(#nodeGlow)" opacity={isHovered || isSelected ? 1 : 0.7} />
@@ -440,6 +457,15 @@ export default function MagicTree() {
                     }
                     return pips;
                   })()}
+                  {/* Lock badge for level-restricted nodes */}
+                  {n.level_required && (
+                    <g transform={`translate(${r - 6}, ${-r + 6})`}>
+                      <circle r={9} fill="#0B0E0C" stroke={nodeColor} strokeWidth={1.2} />
+                      <text x="0" y="3" textAnchor="middle" fontSize="10" fontFamily="'Manrope', sans-serif" fontWeight="600" fill={nodeColor}>
+                        {n.level_required}
+                      </text>
+                    </g>
+                  )}
                   <text
                     x="0" y={r + (maxRank > 1 ? 26 : 18)}
                     textAnchor="middle"
@@ -453,6 +479,49 @@ export default function MagicTree() {
                 </g>
               );
             })}
+
+            {/* Hover tooltip for level-locked nodes */}
+            {(() => {
+              const h = tree.nodes.find((n) => n.id === hoveredNodeId);
+              if (!h || !h.level_required || editMode) return null;
+              const size = h.tier_size || "normal";
+              const r = SIZE_RADIUS[size] || SIZE_RADIUS.normal;
+              const cx = h.x * CANVAS_W;
+              const cy = h.y * CANVAS_H;
+              const text = `Requires Level ${h.level_required}`;
+              const tw = Math.max(150, text.length * 9 + 36);
+              const th = 32;
+              // place above the node; if too close to top, place below
+              const above = cy - r - 14 > th + 6;
+              const bx = Math.max(8, Math.min(CANVAS_W - tw - 8, cx - tw / 2));
+              const by = above ? (cy - r - 14 - th) : (cy + r + 14);
+              const ptx = cx;
+              const pty = above ? (by + th) : by;
+              const ptDir = above ? 1 : -1;
+              return (
+                <g style={{ pointerEvents: "none" }} data-testid="node-lock-tooltip">
+                  <rect
+                    x={bx} y={by} width={tw} height={th} rx={2}
+                    fill="#0B0E0C" stroke="#FBBF24" strokeOpacity="0.55" strokeWidth="1"
+                  />
+                  <path
+                    d={`M ${ptx - 6} ${pty} L ${ptx} ${pty + 6 * ptDir} L ${ptx + 6} ${pty} Z`}
+                    fill="#0B0E0C" stroke="#FBBF24" strokeOpacity="0.55" strokeWidth="1"
+                  />
+                  {/* lantern dot */}
+                  <circle cx={bx + 14} cy={by + th / 2} r="3" fill="#FBBF24" opacity="0.9">
+                    <animate attributeName="opacity" values="0.6;1;0.6" dur="2.4s" repeatCount="indefinite" />
+                  </circle>
+                  <text
+                    x={bx + 24} y={by + th / 2 + 4}
+                    fontFamily="'Manrope', sans-serif" fontSize="12"
+                    fontWeight="600" letterSpacing="2.5" fill="#FBBF24"
+                  >
+                    {text.toUpperCase()}
+                  </text>
+                </g>
+              );
+            })()}
           </svg>
 
           {tree.nodes.length === 0 && (
@@ -514,9 +583,10 @@ export default function MagicTree() {
         <SchoolSettings
           tree={tree}
           onChange={updateTree}
-          onClose={() => setShowSettings(false)}
-          onDelete={async () => {
-            if (!window.confirm(`Delete the entire ${tree.name} school?`)) return;
+          onClose={() => { setShowSettings(false); setConfirmDeleteSchool(false); }}
+          confirmDelete={confirmDeleteSchool}
+          onDeleteClick={async () => {
+            if (!confirmDeleteSchool) { setConfirmDeleteSchool(true); return; }
             try {
               await api.delete(`/magic/trees/${tree.id}`);
               toast.success("School deleted");
@@ -525,6 +595,16 @@ export default function MagicTree() {
           }}
         />
       )}
+
+      {/* Level requirement popup — shown when a player clicks a locked node */}
+      {lockedModalNode && (
+        <LockedNodeModal
+          node={lockedModalNode}
+          accent={accent}
+          onClose={() => setLockedModalNode(null)}
+        />
+      )}
+    </div>
     </div>
   );
 }
@@ -616,6 +696,27 @@ function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartL
                 </li>
               ))}
             </ol>
+          )}
+        </div>
+      )}
+
+      {/* Level requirement — visible to everyone if set, editable in edit mode */}
+      {(node.level_required || editMode) && (
+        <div className="mb-4">
+          <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">Level requirement</div>
+          {editMode ? (
+            <input
+              type="number" min={1} max={20}
+              value={node.level_required || ""}
+              onChange={(e) => onChange({ level_required: e.target.value ? parseInt(e.target.value, 10) : null })}
+              data-testid="edit-level-required"
+              placeholder="None"
+              className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none"
+            />
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#FBBF24]/40 bg-[#FBBF24]/5 text-lantern text-xs tracking-widest uppercase" data-testid="level-req-badge">
+              <Lock className="w-3.5 h-3.5" /> Requires Level {node.level_required}
+            </div>
           )}
         </div>
       )}
@@ -730,7 +831,7 @@ function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartL
   );
 }
 
-function SchoolSettings({ tree, onChange, onClose, onDelete }) {
+function SchoolSettings({ tree, onChange, onClose, onDeleteClick, confirmDelete }) {
   return (
     <div className="fixed inset-0 z-50 bg-[#0B0E0C]/80 backdrop-blur-sm" onClick={onClose} data-testid="settings-overlay">
       <div
@@ -807,11 +908,16 @@ function SchoolSettings({ tree, onChange, onClose, onDelete }) {
           </Field>
 
           <button
-            onClick={onDelete}
+            onClick={onDeleteClick}
             data-testid="delete-tree-btn"
-            className="w-full mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 border border-rust text-muted-bone hover:text-red-400 hover:border-red-800 text-xs tracking-widest uppercase"
+            className={`w-full mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 border text-xs tracking-widest uppercase ${
+              confirmDelete
+                ? "border-red-700 text-red-300 bg-red-950/30 hover:bg-red-900/40"
+                : "border-rust text-muted-bone hover:text-red-400 hover:border-red-800"
+            }`}
           >
-            <Trash2 className="w-3.5 h-3.5" /> Delete this school
+            <Trash2 className="w-3.5 h-3.5" />
+            {confirmDelete ? "Click again to confirm deletion" : "Delete this school"}
           </button>
         </div>
       </div>
@@ -841,6 +947,115 @@ function Field({ label, children }) {
     <div>
       <label className="block text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function LockedNodeModal({ node, accent, onClose }) {
+  const Icon = Icons[node.icon] || Icons.Sparkles;
+  const nodeColor = node.color || accent;
+  const maxRank = Math.max(1, node.max_rank || 1);
+  const curRank = Math.max(0, Math.min(maxRank, node.current_rank || 0));
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-[#0B0E0C]/85 backdrop-blur-sm flex items-center justify-center px-4"
+      onClick={onClose}
+      data-testid="locked-node-modal"
+    >
+      <div
+        className="lantern-card vine-frame p-7 w-full max-w-md relative overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* ember glow behind icon */}
+        <div
+          className="absolute -top-16 -right-16 w-48 h-48 rounded-full blur-3xl opacity-30"
+          style={{ background: nodeColor }}
+        />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-12 h-12 rounded-full border-2 flex items-center justify-center relative"
+                style={{ borderColor: nodeColor }}
+              >
+                <Icon size={22} style={{ color: nodeColor }} strokeWidth={1.5} />
+                <span
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-[#0B0E0C] border flex items-center justify-center"
+                  style={{ borderColor: nodeColor }}
+                >
+                  <Lock className="w-3 h-3" style={{ color: nodeColor }} />
+                </span>
+              </div>
+              <div>
+                <div
+                  className="text-[10px] tracking-[0.3em] uppercase"
+                  style={{ color: nodeColor }}
+                >
+                  Sealed Ability
+                </div>
+                <h3 className="font-serif-display text-2xl text-bone leading-tight">
+                  {node.name}
+                </h3>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              data-testid="locked-modal-close"
+              className="p-1 text-muted-bone hover:text-bone"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div
+            className="border border-[#FBBF24]/40 bg-[#FBBF24]/5 px-4 py-3 mb-5 flex items-center gap-3"
+            data-testid="locked-modal-level"
+          >
+            <Lock className="w-4 h-4 text-lantern shrink-0" />
+            <div>
+              <div className="text-[10px] tracking-[0.3em] uppercase text-lantern">
+                Level Requirement
+              </div>
+              <div className="font-serif-display text-xl text-bone">
+                Requires Level {node.level_required}
+              </div>
+            </div>
+          </div>
+
+          {node.description && (
+            <p className="text-sm text-muted-bone leading-relaxed mb-4">
+              {node.description}
+            </p>
+          )}
+
+          {node.rank_descriptions && node.rank_descriptions.length > 0 && (
+            <div className="mb-4">
+              <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-2">
+                Per-rank effect
+              </div>
+              <ol className="space-y-1 text-sm">
+                {node.rank_descriptions.map((rd, i) => (
+                  <li
+                    key={i}
+                    className={`flex items-start gap-2 ${i < curRank ? "text-bone" : "text-muted-bone"}`}
+                  >
+                    <span
+                      className={`text-[10px] tracking-widest uppercase mt-1 ${i < curRank ? "text-lantern" : "text-muted-bone"}`}
+                    >
+                      R{i + 1}
+                    </span>
+                    <span>{rd}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          <p className="text-xs italic text-muted-bone leading-relaxed border-t border-rust/60 pt-3">
+            The lantern&rsquo;s glow does not yet reach this path. Walk the realm a while longer.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
