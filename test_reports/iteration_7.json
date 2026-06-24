@@ -1,0 +1,49 @@
+{
+  "summary": "Tested Spell System Overhaul Batch C: backend PUT merge semantics (6 pytest cases, all green) and frontend SpellManager interactive flows via Playwright (DM edit + anon read-only, all green). One UI rendering bug spotted in the legacy details card that displays spell_slots_used as '[object Object]'. One latent backend defect identified: PUT /api/pcs/{id} with body omitting `level` resets level to 1 (Pydantic default). The live frontend works around this because SpellManager spreads the full metadata, but it should be hardened.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/pcs/{id}",
+        "issue": "If client omits `level`, Pydantic defaults body.level=1 and backend overwrites the stored level to 1 (since `body.level if body.level is not None else metadata.get(...)`). Same risk for any other field whose Pydantic default is non-None (e.g. level). Frontend SpellManager mitigates by spreading full metadata, but any other minimal-PUT consumer (or a future refactor) would silently corrupt the character. Recommended fix: change PlayerCharacterIn.level default to None, like the other 5e fields, and use the unified `if v is not None` merge pattern."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "EntryDetail.jsx (character page summary card)",
+        "issue": "The top properties card renders `spell_slots_used` metadata as raw '[object Object]'. The generic key/value renderer cannot stringify the dict. Either hide internal keys (spell_slots_used, spells_prepared, spells_known, spell_slots, ability_scores, resource_*) from the legacy details card, or format them. Visible on /characters/<slug>.",
+        "selector": "EntryDetail meta properties block",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_spells.py",
+    "/app/test_reports/pytest/iter7_spells.xml"
+  ],
+  "action_items": [
+    "Hide or pretty-print object-valued metadata keys (spell_slots_used, spell_slots, ability_scores, spells_prepared, spells_known) in EntryDetail's legacy properties card; they're already rendered by the new SpellManager/CharacterSheet so the duplication shows '[object Object]'.",
+    "Optional hardening: change PlayerCharacterIn.level default from 1 to None and merge with the unified `if v is not None` block so minimal PUT bodies cannot accidentally reset level."
+  ],
+  "critical_code_review_comments": [
+    "PlayerCharacterIn defines `level: Optional[int] = 1`, but the PUT merge treats `body.level` as authoritative when not None (which is always, due to the default). This is inconsistent with race/class which use `body.race or metadata.get('race', '')`. Move level into the `if v is not None` loop with a None default.",
+    "SpellManager.persist() spreads `...m` (raw metadata) into the PUT payload — this works only because PlayerCharacterIn has `extra='ignore'`. It also re-sends `class` (which won't map to `char_class`), `owner`, `user_id`, etc. Mostly harmless thanks to `extra='ignore'` and the fall-back-to-existing branches, but it's a fragile contract. Consider an explicit allow-list in the frontend, or a dedicated PATCH endpoint for slot/prepared updates."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_spells.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 pytest)",
+    "frontend": "100% (DM-edit flow + anon read-only flow)"
+  },
+  "test_credentials": "DM dm@lantern.realm / lantern-keeper-1 from /app/memory/test_credentials.md — works.",
+  "seed_data_creation": "Test PC `TEST_UIWizard` (slug test-uiwizard) created via API for the Playwright run and deleted in teardown. Backend test_spells.py auto-creates and deletes TEST_Wizard_<uuid> PCs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Batch C functionality (interactive pips + long rest + prepared toggle + read-only anon view) is fully working end-to-end. Two non-blocking issues remain: (1) legacy EntryDetail meta card shows '[object Object]' for spell_slots_used; (2) backend PUT silently resets `level` to 1 if omitted — only triggered by a minimal PUT, not by the current SpellManager flow. Re-use /app/backend/tests/test_spells.py for regression; it covers create, slot merge, prepared merge, long rest, anon 403, and public GET visibility.",
+  "rca of the issue": "EntryDetail '[object Object]' bug: a generic key→value renderer in the character details card stringifies `spell_slots_used` (a dict) using default JS coercion. Fix by either omitting structured keys from the iterator or JSON.stringify-ing object values. PUT level reset RCA: PlayerCharacterIn declares `level: Optional[int] = 1` while race/class default to '' and are merged via truthy fallback; level uses an `is not None` check so the default 1 always wins over existing metadata.level. Move level into the unified `if v is not None` block (same pattern as max_hp, armor_class)."
+}

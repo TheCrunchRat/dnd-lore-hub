@@ -1,6 +1,7 @@
 import React from "react";
-import { Heart, Shield, Footprints, Sparkles, BookOpen, Sword } from "lucide-react";
+import { Heart, Shield, Footprints, Sparkles, Sword } from "lucide-react";
 import ResourceBar from "./ResourceBar";
+import SpellManager from "./SpellManager";
 
 const ABILITIES = [
   { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
@@ -92,30 +93,9 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
         </div>
       </div>
 
-      {(m.spell_slots && Object.keys(m.spell_slots).length > 0) && (
-        <div className="lantern-card p-4 mb-6">
-          <div className="text-xs tracking-[0.3em] uppercase text-lantern mb-3">Spell Slots</div>
-          <div className="grid grid-cols-3 sm:grid-cols-9 gap-2">
-            {Object.entries(m.spell_slots).sort(([a],[b]) => +a - +b).map(([lvl, s]) => (
-              <div key={lvl} className="border border-rust p-2 text-center" data-testid={`sheet-slot-${lvl}`}>
-                <div className="text-[10px] tracking-widest uppercase text-lantern">Lv {lvl}</div>
-                <div className="font-serif-display text-xl text-bone">{(s.max || 0) - (s.used || 0)}<span className="text-muted-bone text-base">/{s.max || 0}</span></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {(m.spells_known && m.spells_known.length > 0) && (
-        <div className="lantern-card p-4 mb-6">
-          <div className="text-xs tracking-[0.3em] uppercase text-lantern mb-3 inline-flex items-center gap-2"><BookOpen className="w-3.5 h-3.5"/> Spells</div>
-          <div className="flex flex-wrap gap-1.5">
-            {m.spells_known.map((s) => (
-              <span key={s} className="text-xs border border-rust px-2 py-1 text-bone">{s}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {(m.spell_slots && Object.keys(m.spell_slots).length > 0) || (m.spells_known && m.spells_known.length > 0) ? (
+        <SpellManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
+      ) : null}
 
       {(m.equipment && m.equipment.length > 0) && (
         <div className="lantern-card p-4 mb-6">
