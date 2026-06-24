@@ -578,6 +578,7 @@ export default function MagicTree() {
           )}
         </aside>
       </div>
+      </div>
 
       {showSettings && (
         <SchoolSettings
@@ -604,7 +605,6 @@ export default function MagicTree() {
           onClose={() => setLockedModalNode(null)}
         />
       )}
-    </div>
     </div>
   );
 }

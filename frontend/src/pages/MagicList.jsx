@@ -155,6 +155,8 @@ export default function MagicList() {
         </div>
       )}
 
+      </div>
+
       {showNew && (
         <div className="fixed inset-0 z-50 bg-[#0B0E0C]/80 backdrop-blur-sm flex items-center justify-center px-4" onClick={() => setShowNew(false)} data-testid="new-tree-modal">
           <div className="lantern-card vine-frame p-8 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -190,7 +192,6 @@ export default function MagicList() {
           </div>
         </div>
       )}
-      </div>
     </div>
   );
 }
