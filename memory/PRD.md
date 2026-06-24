@@ -60,11 +60,15 @@
   - `components/magic-tree/SchoolSettings.jsx` — slide-over settings + two-click delete confirm
   - `components/magic-tree/LockedNodeModal.jsx` — level-locked popup
   - All previously-passing `data-testid`s retained 1:1; iteration_4 testing 100% pass.
+- **Per-entry DM-Only visibility toggle** (Codex):
+  - New `is_private: bool` on the Entry model. `GET /api/entries` filters out private entries for non-admins; `GET /api/entries/:slug` returns **403 with `{"detail": "sealed"}`** for non-admins; `/stats` aggregates also exclude private entries for non-admins.
+  - Admin UI: Lock/Unlock quick-toggle on each row (`toggle-private-<slug>`), `DM Only` pill on the row + EntryCard, checkbox in editor drawer (`field-is-private`).
+  - **`SealedEntry.jsx`** component: full-page placeholder shown to players who hit a private entry URL — watchful ember-eye + sprawling vines/leaves SVG with "Sealed by the Lanternkeeper" overline, "This page is not yours to read" headline, and "Return to the Codex" link.
+  - Pytest regression suite at `/app/backend/tests/test_private_entries.py`; iteration_5 testing 100% pass.
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs
-- **P1** Public sharable share-link toggle per entry (DM-only spoiler tags)
-- **P2** Refactor: break `server.py` into route modules under `/app/backend/routes`
+- **P2** Refactor: break `server.py` (now ~1370 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)
