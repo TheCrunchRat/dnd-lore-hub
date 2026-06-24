@@ -70,11 +70,14 @@
   - Pinned comments float to the top; markdown + `[[wiki-link]]` rendering reused inside comments via `MarkdownView`
   - `components/SessionComments.jsx` — collapsible thread per session card with: post box (Ctrl+Enter to send), inline edit, two-click delete confirm, DM pin/unpin per comment, DM lock/unlock for the whole thread, relative timestamps, DM role badge
   - Wired into each `SessionCard` on `/sessions`; entries pre-loaded at the page level so cross-links resolve
+- **Multiple regional maps** (Batch 3 of 4):
+  - Backend: `regional_maps` collection `{id, slug, name, subtitle, image_url, is_default, sort_order, ...}` with auto-unique slug; entries gain a `map_id` field (null → default map); seed migrates the legacy `settings.world_map_url` into a single default map and backfills existing placements
+  - Endpoints: `GET /api/maps`, `GET /api/maps/:id_or_slug`, `POST /api/maps`, `PUT /api/maps/:id`, `POST /api/maps/:id/set_default`, `DELETE /api/maps/:id` (blocks deletion of the last map; unpins all entries assigned to a deleted map). `PUT /api/entries/:id/position` now accepts optional `map_id`.
+  - Frontend: `/map` rewritten — tab bar across all maps (count per map shown), atlas controls panel with edit/delete/set-default per row, `MapEditor` drawer with name/subtitle/image + integrated `ImageUploader`. Placement happens against the active map's `map_id`. Two-click delete confirm for maps.
 
 ## Backlog / Next
-- **P1** Populate Shop page with items, prices, merchant NPCs
-- **P1** Multiple regional maps (skipped Batch 3) — `/map` becomes a hub with named maps; locations tagged per map
-- **P2** Refactor: break `server.py` (now ~1600 lines) into route modules under `/app/backend/routes`
+- **P1** Populate Shop page with items, prices, merchant NPCs (the last remaining seed)
+- **P2** Refactor: break `server.py` (now ~1740 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)
