@@ -82,10 +82,21 @@
   - CSS bugfix: prose drop-cap scoped to direct-child first paragraph only (no longer applies inside list items / blockquotes)
   - Sonner toaster repositioned to bottom-right so it no longer overlaps editor save buttons
   - Pytest suite `/app/backend/tests/test_guides.py` — 11/11 pass
+- **Player Profiles** (`/profile` for self, `/profile/:user_id` public):
+  - Backend: extended `users` model with `display_name, avatar_url, bio, quote, title, pronouns`; new `ProfileIn` model; endpoints `GET /api/profile/me` (login required, includes email), `PUT /api/profile/me` (own only), `GET /api/profile/:user_id` (public, omits email). Bundle includes `{profile, stats: {characters/comments/rsvps}, characters: [...]}`.
+  - Frontend `pages/Profile.jsx`: hero card with avatar, custom title (+ DM badge), display name, pronouns, italic quote, stats tiles, markdown bio with `[[wiki]]` cross-links, character grid linked into each PC sheet. Editor drawer reuses `ImageUploader` (avatar) + `MarkdownEditor` (bio).
+  - Top nav user pill in `Layout.jsx` is now a link to `/profile`.
+- **Custom Resource Bar** on character sheet (mana/wickfire/sorcery points/whatever):
+  - Backend `PCIn` extended with `resource_name / resource_max / resource_current / resource_color`; update path now allows explicit clearing by sending empty/null (the standard `if v is not None` filter is bypassed for these specific fields). 0 is preserved as a valid current value.
+  - Frontend `components/ResourceBar.jsx`: one configurable bar per character — name + max + current + colour. Owner/DM gets `-1 / +1 / Fill` quick buttons, a slider for fine-tuning, and a config modal to rename/recolour or remove. Gradient progress bar with ember glow. Hidden for non-editors when not configured; shows an "Add a resource" stub for editors.
+  - Wired into `CharacterSheet` at the top of the stat blocks.
 
 ## Backlog / Next
-- **P1** Populate Shop page with items, prices, merchant NPCs (the last remaining seed)
-- **P2** Refactor: break `server.py` (now ~1900 lines) into route modules under `/app/backend/routes`
+- **P0** Spell system overhaul (Batches C + D — user requested 2e/all-four):
+  - Batch C: per-level spell-slot tracker (checkboxes) + prepared/known toggle
+  - Batch D: redesigned spell browser (search/filter by school + level + description) + DM-managed homebrew spells in the rules library
+- **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
+- **P2** Refactor: break `server.py` (now ~2000 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)

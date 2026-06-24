@@ -16,6 +16,7 @@ import Shop from "@/pages/Shop";
 import Register from "@/pages/Register";
 import RulesAdmin from "@/pages/RulesAdmin";
 import Guide from "@/pages/Guide";
+import Profile from "@/pages/Profile";
 import { Toaster } from "sonner";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -48,6 +49,8 @@ function RouterShell() {
         <Route path="/shop" element={<Shop />} />
         <Route path="/guide" element={<Guide />} />
         <Route path="/guide/:slug" element={<Guide />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/:id" element={<Profile />} />
         <Route path="/magic" element={<MagicList />} />
         <Route path="/magic/:slug" element={<MagicTree />} />
         <Route path="/world/:slug" element={<EntryDetail />} />

@@ -1,5 +1,6 @@
 import React from "react";
 import { Heart, Shield, Footprints, Sparkles, BookOpen, Sword } from "lucide-react";
+import ResourceBar from "./ResourceBar";
 
 const ABILITIES = [
   { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
@@ -18,7 +19,7 @@ const mod = (s) => Math.floor((s - 10) / 2);
 const fmtMod = (m) => (m >= 0 ? `+${m}` : `${m}`);
 const profBonus = (level) => 2 + Math.floor((Math.max(1, level || 1) - 1) / 4);
 
-export default function CharacterSheet({ entry }) {
+export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
   const m = entry?.metadata || {};
   if (m.role !== "PC") return null;
   const scores = m.ability_scores || {};
@@ -28,6 +29,7 @@ export default function CharacterSheet({ entry }) {
 
   return (
     <div className="mb-10" data-testid="character-sheet">
+      <ResourceBar entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         <StatBlock icon={Heart} label="HP" value={`${m.current_hp ?? m.max_hp ?? "—"} / ${m.max_hp ?? "—"}`} />
         <StatBlock icon={Shield} label="AC" value={m.armor_class ?? "—"} />

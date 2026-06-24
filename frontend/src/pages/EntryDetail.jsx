@@ -235,7 +235,7 @@ export default function EntryDetail() {
           </div>
         )}
 
-        {isPC && <CharacterSheet entry={entry} />}
+        {isPC && <CharacterSheet entry={entry} canEdit={canEdit} onUpdated={(updated) => setEntry(updated)} />}
 
         {entry.content && (
           <MarkdownView source={entry.content} entries={allEntries} data-testid="entry-content" />

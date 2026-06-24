@@ -147,6 +147,16 @@ class UserPublic(BaseModel):
     role: str
 
 
+class ProfileIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+    quote: Optional[str] = None
+    title: Optional[str] = None
+    pronouns: Optional[str] = None
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
@@ -259,6 +269,87 @@ async def logout(response: Response, user: dict = Depends(get_current_user)):
 @api.get("/auth/me", response_model=UserPublic)
 async def me(user: dict = Depends(get_current_user)):
     return {"id": user["id"], "email": user["email"], "name": user["name"], "role": user["role"]}
+
+
+# ---------------- Profile Endpoints ----------------
+def profile_to_out(user_doc: dict, include_email: bool = False) -> dict:
+    out = {
+        "id": user_doc["id"],
+        "name": user_doc.get("name", ""),
+        "role": user_doc.get("role", "player"),
+        "display_name": user_doc.get("display_name") or user_doc.get("name", ""),
+        "avatar_url": user_doc.get("avatar_url", ""),
+        "bio": user_doc.get("bio", ""),
+        "quote": user_doc.get("quote", ""),
+        "title": user_doc.get("title", ""),
+        "pronouns": user_doc.get("pronouns", ""),
+        "created_at": user_doc.get("created_at"),
+    }
+    if include_email:
+        out["email"] = user_doc.get("email", "")
+    return out
+
+
+async def _profile_stats(user_id: str) -> dict:
+    chars = await db.entries.count_documents({"category": "character", "metadata.user_id": user_id})
+    comments = await db.session_comments.count_documents({"author_id": user_id, "deleted": {"$ne": True}})
+    # RSVP count: sessions where this user appears in rsvps[]
+    rsvps = await db.scheduled_sessions.count_documents({"rsvps.user_id": user_id})
+    return {"characters": chars, "comments": comments, "rsvps": rsvps}
+
+
+async def _profile_characters(user_id: str) -> List[dict]:
+    cursor = db.entries.find(
+        {"category": "character", "metadata.user_id": user_id},
+        {"_id": 0},
+    ).sort("updated_at", -1)
+    items = await cursor.to_list(length=100)
+    return [entry_to_out(d) for d in items]
+
+
+@api.get("/profile/me")
+async def get_my_profile(user: dict = Depends(get_current_user)):
+    doc = await db.users.find_one({"_id": ObjectId(user["id"])})
+    doc["id"] = user["id"]
+    return {
+        "profile": profile_to_out(doc, include_email=True),
+        "stats": await _profile_stats(user["id"]),
+        "characters": await _profile_characters(user["id"]),
+    }
+
+
+@api.put("/profile/me")
+async def update_my_profile(body: ProfileIn, user: dict = Depends(get_current_user)):
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    # strip whitespace on all string fields
+    for k in list(updates):
+        if isinstance(updates[k], str):
+            updates[k] = updates[k].strip()
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": updates})
+    doc = await db.users.find_one({"_id": ObjectId(user["id"])})
+    doc["id"] = user["id"]
+    return {
+        "profile": profile_to_out(doc, include_email=True),
+        "stats": await _profile_stats(user["id"]),
+        "characters": await _profile_characters(user["id"]),
+    }
+
+
+@api.get("/profile/{user_id}")
+async def get_profile(user_id: str):
+    try:
+        doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    except Exception:
+        doc = None
+    if not doc:
+        raise HTTPException(status_code=404, detail="Player not found")
+    doc["id"] = user_id
+    return {
+        "profile": profile_to_out(doc, include_email=False),
+        "stats": await _profile_stats(user_id),
+        "characters": await _profile_characters(user_id),
+    }
 
 
 @api.post("/auth/refresh")
@@ -1039,6 +1130,11 @@ class PlayerCharacterIn(BaseModel):
     spell_slots: Optional[dict] = None          # {1: {max, used}, ...}
     equipment: Optional[List[str]] = None
     features: Optional[List[str]] = None
+    # Custom configurable resource (e.g. Mana / Wickfire / Sorcery Points)
+    resource_name: Optional[str] = None
+    resource_current: Optional[int] = None
+    resource_max: Optional[int] = None
+    resource_color: Optional[str] = None  # hex; defaults to lantern gold
 
 
 async def _is_admin(request: Request) -> bool:
@@ -1085,6 +1181,10 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "spell_slots": body.spell_slots or {},
         "equipment": body.equipment or [],
         "features": body.features or [],
+        "resource_name": body.resource_name or "",
+        "resource_max": body.resource_max,
+        "resource_current": body.resource_current,
+        "resource_color": body.resource_color or "",
     }
     if user_id:
         metadata["user_id"] = user_id
@@ -1158,6 +1258,17 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "features": body.features,
     }.items():
         if v is not None:
+            metadata[k] = v
+    # Custom resource fields: allow explicit clearing (empty/null) to remove the bar
+    for k, v in {
+        "resource_name": body.resource_name,
+        "resource_max": body.resource_max,
+        "resource_current": body.resource_current,
+        "resource_color": body.resource_color,
+    }.items():
+        if v is None or v == "":
+            metadata.pop(k, None)
+        else:
             metadata[k] = v
     if current and not metadata.get("user_id"):
         metadata["user_id"] = current["id"]

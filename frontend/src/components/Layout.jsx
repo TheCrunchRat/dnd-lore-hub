@@ -55,10 +55,15 @@ export default function Layout({ children }) {
           <div className="flex items-center gap-2">
             {user ? (
               <>
-                <span className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-rust text-bone" data-testid="user-pill">
+                <Link
+                  to="/profile"
+                  data-testid="profile-link"
+                  className="hidden sm:inline-flex items-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-rust text-bone hover:text-lantern hover:border-[#FBBF24]/40 transition-colors"
+                  title="Your profile"
+                >
                   <Shield className="w-3.5 h-3.5 text-lantern" />
                   {user.name}
-                </span>
+                </Link>
                 {user.role === "admin" && (
                   <button
                     onClick={() => navigate("/admin")}
