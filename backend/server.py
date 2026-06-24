@@ -464,10 +464,14 @@ async def get_guide(guide_id: str):
 
 @api.post("/guides")
 async def create_guide(body: GuideIn, _user: dict = Depends(get_current_user)):
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
     now = datetime.now(timezone.utc).isoformat()
     gid = str(uuid.uuid4())
-    slug = await _make_unique_guide_slug(body.title)
+    slug = await _make_unique_guide_slug(title)
     doc = body.model_dump()
+    doc["title"] = title
     doc.update({"id": gid, "slug": slug, "created_at": now, "updated_at": now})
     await db.guides.insert_one(doc)
     doc.pop("_id", None)
@@ -476,12 +480,16 @@ async def create_guide(body: GuideIn, _user: dict = Depends(get_current_user)):
 
 @api.put("/guides/{guide_id}")
 async def update_guide(guide_id: str, body: GuideIn, _user: dict = Depends(get_current_user)):
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
     existing = await db.guides.find_one({"id": guide_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Guide not found")
     update = body.model_dump()
-    if update["title"] != existing.get("title"):
-        update["slug"] = await _make_unique_guide_slug(update["title"])
+    update["title"] = title
+    if title != existing.get("title"):
+        update["slug"] = await _make_unique_guide_slug(title)
     update["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.guides.update_one({"id": guide_id}, {"$set": update})
     updated = await db.guides.find_one({"id": guide_id}, {"_id": 0})

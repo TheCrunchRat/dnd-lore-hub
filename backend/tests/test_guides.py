@@ -5,8 +5,13 @@ import struct
 import zlib
 import requests
 import pytest
+from pathlib import Path
+from dotenv import load_dotenv
 
-BASE = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
+# Auto-load the frontend .env so REACT_APP_BACKEND_URL is available without manual export.
+load_dotenv(Path(__file__).resolve().parents[2] / "frontend" / ".env")
+
+BASE = (os.environ.get("REACT_APP_BACKEND_URL") or "http://localhost:8001").rstrip("/")
 API = f"{BASE}/api"
 
 DM_EMAIL = "dm@lantern.realm"

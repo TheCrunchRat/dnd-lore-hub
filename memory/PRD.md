@@ -74,10 +74,18 @@
   - Backend: `regional_maps` collection `{id, slug, name, subtitle, image_url, is_default, sort_order, ...}` with auto-unique slug; entries gain a `map_id` field (null → default map); seed migrates the legacy `settings.world_map_url` into a single default map and backfills existing placements
   - Endpoints: `GET /api/maps`, `GET /api/maps/:id_or_slug`, `POST /api/maps`, `PUT /api/maps/:id`, `POST /api/maps/:id/set_default`, `DELETE /api/maps/:id` (blocks deletion of the last map; unpins all entries assigned to a deleted map). `PUT /api/entries/:id/position` now accepts optional `map_id`.
   - Frontend: `/map` rewritten — tab bar across all maps (count per map shown), atlas controls panel with edit/delete/set-default per row, `MapEditor` drawer with name/subtitle/image + integrated `ImageUploader`. Placement happens against the active map's `map_id`. Two-click delete confirm for maps.
+- **Guides** (small wiki at `/guide` and `/guide/:slug`):
+  - Backend: new `guides` collection `{id, slug, title, subtitle, content (markdown), sort_order, is_pinned, ...}`; auto-unique slug derived from title; server-side title strip + non-empty validation; CRUD endpoints public-read + DM-write; seeded "Welcome to the Lantern Realm" pinned guide
+  - Frontend: `pages/Guide.jsx` — left sidebar with all guides (pinned first), active article rendered via `MarkdownView` so `[[wiki-link]]` and images work; `GuideEditor` drawer with title/subtitle/`MarkdownEditor`/sort-order/pin-toggle. DM-only New / Edit / Pin / two-click-Delete controls
+  - Wired into top nav between Sessions and Bestiary; admin quick-link tile `qlink-guide` added
+  - Markdown pipeline bugfix: `[[wiki-link]]` tokens inside backtick code spans now stay literal (no raw HTML leak)
+  - CSS bugfix: prose drop-cap scoped to direct-child first paragraph only (no longer applies inside list items / blockquotes)
+  - Sonner toaster repositioned to bottom-right so it no longer overlaps editor save buttons
+  - Pytest suite `/app/backend/tests/test_guides.py` — 11/11 pass
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (the last remaining seed)
-- **P2** Refactor: break `server.py` (now ~1740 lines) into route modules under `/app/backend/routes`
+- **P2** Refactor: break `server.py` (now ~1900 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)

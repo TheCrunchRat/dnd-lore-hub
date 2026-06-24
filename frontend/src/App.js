@@ -74,7 +74,7 @@ function App() {
         <RouterShell />
         <Toaster
           theme="dark"
-          position="top-right"
+          position="bottom-right"
           toastOptions={{
             style: {
               background: "#151B17",
