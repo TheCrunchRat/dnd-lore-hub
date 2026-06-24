@@ -44,7 +44,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
     try {
       const payload = {
         name: entry.title,
-        player_name: m.owner || m.player_name || "",
+        player_name: m.owner || m.player_name || entry.title,
         ...m,
         ...patch,
       };

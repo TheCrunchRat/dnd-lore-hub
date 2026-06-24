@@ -30,7 +30,7 @@ export default function ResourceBar({ entry, canEdit, onUpdated }) {
       const payload = {
         // Send the whole metadata so the backend keeps everything intact
         name: entry.title,
-        player_name: m.player_name || "",
+        player_name: m.owner || m.player_name || entry.title,
         ...m,
         ...patch,
       };
