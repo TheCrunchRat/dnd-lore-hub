@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import MarkdownEditor from "../components/MarkdownEditor";
+import ImageUploader from "../components/ImageUploader";
 import { markdownToPlain } from "../lib/markdown";
 
 const emptyEntry = {
@@ -649,8 +650,14 @@ function EditorDrawer({
           </Section>
 
           {/* --- Section: Hero image --- */}
-          <Section title="Hero Image" subtitle="A wide image displayed at the top of the entry.">
-            <Field label="Image URL">
+          <Section title="Hero Image" subtitle="Drop a file to upload, or paste a URL.">
+            <ImageUploader
+              value={draft.image_url}
+              onUploaded={(url) => setDraft({ ...draft, image_url: url })}
+              onClear={() => setDraft({ ...draft, image_url: "" })}
+              testid="hero-uploader"
+            />
+            <Field label="Image URL" hint="Auto-filled when you upload, but you can paste an external URL too.">
               <input
                 type="text"
                 value={draft.image_url}
@@ -659,13 +666,6 @@ function EditorDrawer({
                 placeholder="https://…"
                 className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none"
               />
-              {draft.image_url ? (
-                <img src={draft.image_url} alt="" className="mt-3 h-32 w-full object-cover border border-rust" />
-              ) : (
-                <div className="mt-3 h-32 border border-dashed border-rust flex items-center justify-center text-muted-bone text-xs">
-                  No image yet
-                </div>
-              )}
             </Field>
           </Section>
 

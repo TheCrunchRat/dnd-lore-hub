@@ -4,6 +4,7 @@ import {
   Code, Eye, EyeOff, BookOpen,
 } from "lucide-react";
 import MarkdownView from "./MarkdownView";
+import ImageUploader from "./ImageUploader";
 
 /**
  * Markdown text editor with:
@@ -166,6 +167,11 @@ export default function MarkdownEditor({
         {tools.map((t) => (
           <ToolBtn key={t.testid} {...t} />
         ))}
+        <ImageUploader
+          compact
+          testid={`${testid}-img`}
+          onUploaded={(url) => insertAtCursor(`![image](${url})`, "image")}
+        />
         <div className="flex-1" />
         <button
           type="button"

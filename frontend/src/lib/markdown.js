@@ -93,12 +93,12 @@ export function renderMarkdown(src, entries) {
       "h1", "h2", "h3", "h4",
       "ul", "ol", "li",
       "blockquote", "hr",
-      "a", "code", "pre", "span",
+      "a", "code", "pre", "span", "img",
     ],
-    ALLOWED_ATTR: ["href", "title", "class", "data-codex-slug"],
+    ALLOWED_ATTR: ["href", "title", "class", "data-codex-slug", "src", "alt", "loading"],
     ALLOW_DATA_ATTR: false,
     // Block javascript: URLs etc.
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/[^/]|#)/i,
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|data):|\/[^/]|#)/i,
   });
 }
 

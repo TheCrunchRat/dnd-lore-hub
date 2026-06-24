@@ -12,8 +12,9 @@ from typing import List, Optional, Literal
 
 import bcrypt
 import jwt
+import requests
 from bson import ObjectId
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
@@ -1325,8 +1326,6 @@ def _wickwarden_nodes():
 
 
 # ---------------- App wiring ----------------
-app.include_router(api)
-
 allow_origins = [FRONTEND_URL]
 extra_origins = os.environ.get("CORS_ORIGINS", "")
 if extra_origins:
@@ -1334,6 +1333,127 @@ if extra_origins:
         o = o.strip()
         if o and o != "*" and o not in allow_origins:
             allow_origins.append(o)
+
+# ---------------- Object Storage (Emergent) ----------------
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = os.environ.get("APP_NAME", "lantern-realm")
+_storage_key: Optional[str] = None
+
+ALLOWED_IMAGE_TYPES = {
+    "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg",
+    "image/webp": "webp", "image/gif": "gif",
+}
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def init_storage() -> str:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    if not EMERGENT_LLM_KEY:
+        raise RuntimeError("EMERGENT_LLM_KEY is not configured")
+    r = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
+    r.raise_for_status()
+    _storage_key = r.json()["storage_key"]
+    return _storage_key
+
+
+def _storage_put(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    r = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    if r.status_code == 403:
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        r = requests.put(
+            f"{STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": key, "Content-Type": content_type},
+            data=data, timeout=120,
+        )
+    r.raise_for_status()
+    return r.json()
+
+
+def _storage_get(path: str):
+    key = init_storage()
+    r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    if r.status_code == 403:
+        global _storage_key
+        _storage_key = None
+        key = init_storage()
+        r = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    r.raise_for_status()
+    return r.content, r.headers.get("Content-Type", "application/octet-stream")
+
+
+# ---------------- Upload Endpoints ----------------
+@api.post("/uploads")
+async def upload_image(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the Lanternkeeper may upload")
+    ct = (file.content_type or "").lower()
+    if ct not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {ct or 'unknown'}")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)")
+    ext = ALLOWED_IMAGE_TYPES[ct]
+    file_id = uuid.uuid4().hex
+    path = f"{APP_NAME}/uploads/{user['id']}/{file_id}.{ext}"
+    try:
+        result = _storage_put(path, data, ct)
+    except Exception as exc:
+        logger.error(f"Storage upload failed: {exc}")
+        raise HTTPException(status_code=502, detail="Storage backend unavailable")
+    record = {
+        "id": file_id,
+        "storage_path": result.get("path", path),
+        "original_filename": file.filename or f"{file_id}.{ext}",
+        "content_type": ct,
+        "size": result.get("size", len(data)),
+        "uploaded_by": user["id"],
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.uploads.insert_one(record)
+    return {"id": file_id, "url": f"/api/uploads/{file_id}", "size": record["size"]}
+
+
+@api.get("/uploads/{file_id}")
+async def fetch_upload(file_id: str):
+    record = await db.uploads.find_one({"id": file_id, "is_deleted": {"$ne": True}})
+    if not record:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    try:
+        data, ct = _storage_get(record["storage_path"])
+    except Exception as exc:
+        logger.error(f"Storage fetch failed for {file_id}: {exc}")
+        raise HTTPException(status_code=502, detail="Storage backend unavailable")
+    return Response(
+        content=data,
+        media_type=record.get("content_type") or ct,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@api.delete("/uploads/{file_id}")
+async def soft_delete_upload(file_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the Lanternkeeper may delete uploads")
+    r = await db.uploads.update_one({"id": file_id}, {"$set": {"is_deleted": True}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    return {"ok": True}
+
+
+app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1354,12 +1474,18 @@ async def on_startup():
     await db.magic_trees.create_index("id", unique=True)
     await db.magic_trees.create_index("slug", unique=True)
     await db.scheduled_sessions.create_index("scheduled_at")
+    await db.uploads.create_index("id", unique=True)
     for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
         await db[coll].create_index("id", unique=True)
     await seed_admins()
     await seed_entries()
     await seed_magic_trees()
     await seed_rules()
+    try:
+        init_storage()
+        logger.info("Emergent object storage initialised")
+    except Exception as exc:
+        logger.warning(f"Storage init deferred (will retry on first upload): {exc}")
 
 
 @app.on_event("shutdown")

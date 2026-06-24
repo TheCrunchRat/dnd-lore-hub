@@ -57,13 +57,19 @@
   - `components/MarkdownEditor.jsx` — controlled textarea with toolbar (B/I/H/lists/quote/link/code/codex), live split-pane preview, `[[` autocomplete dropdown matching codex entries, Ctrl+B/I/K shortcuts
   - Wired into Admin summary + content fields, EntryDetail summary + content rendering, EntryCard preview (via `markdownToPlain`)
   - Custom `.prose-tome` styles for headings/lists/blockquote/bold/italic/code/codex-link/broken-link with the lantern aesthetic
+- **Image upload** (Batch 2 of 4):
+  - Emergent managed object storage (`integrations.emergentagent.com/objstore`) integrated via `EMERGENT_LLM_KEY`
+  - Backend: `POST /api/uploads` (admin-only, multipart, validates PNG/JPG/WEBP/GIF up to 10 MB), `GET /api/uploads/:id` (public, served with `Cache-Control: immutable`), `DELETE /api/uploads/:id` (admin-only, soft delete via `is_deleted` flag)
+  - `uploads` Mongo collection with index on `id`
+  - `components/ImageUploader.jsx` — drag-and-drop + click-to-pick with preview, used in two modes: full dropzone (hero image) and compact icon (markdown toolbar)
+  - Wired into Admin "Hero Image" field (replaces URL-only input; URL field remains as fallback) and into MarkdownEditor toolbar (inserts `![image](url)` at cursor)
+  - DOMPurify config extended to allow `<img>` with `src`, `alt`, `loading`
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs
-- **P1** Image upload (Batch 2) — Emergent managed object storage; replaces URL-only input
 - **P1** Multiple regional maps (Batch 3) — `/map` becomes a hub with named maps; locations tagged per map
 - **P1** Player comments per session (Batch 4) — login-required, DM moderation, per-session lock
-- **P2** Refactor: break `server.py` (now ~1370 lines) into route modules under `/app/backend/routes`
+- **P2** Refactor: break `server.py` (now ~1500 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)
