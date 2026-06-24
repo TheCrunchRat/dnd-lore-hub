@@ -64,12 +64,17 @@
   - `components/ImageUploader.jsx` — drag-and-drop + click-to-pick with preview, used in two modes: full dropzone (hero image) and compact icon (markdown toolbar)
   - Wired into Admin "Hero Image" field (replaces URL-only input; URL field remains as fallback) and into MarkdownEditor toolbar (inserts `![image](url)` at cursor)
   - DOMPurify config extended to allow `<img>` with `src`, `alt`, `loading`
+- **Player comments per session** (Batch 4 of 4):
+  - Backend: `session_comments` collection with fields `{id, session_id, author_id, author_name, author_role, body, pinned, edited, deleted, created_at, updated_at}` (soft delete) + `comments_locked` bool added to `scheduled_sessions`
+  - Endpoints: `GET /api/sessions/:id/comments` (public), `POST` (login required, blocked when locked unless admin), `PUT /comments/:cid` (author or admin), `DELETE /comments/:cid` (author or admin, soft delete), `POST /comments/:cid/pin` (admin only), `POST /sessions/:id/lock_comments` (admin only)
+  - Pinned comments float to the top; markdown + `[[wiki-link]]` rendering reused inside comments via `MarkdownView`
+  - `components/SessionComments.jsx` — collapsible thread per session card with: post box (Ctrl+Enter to send), inline edit, two-click delete confirm, DM pin/unpin per comment, DM lock/unlock for the whole thread, relative timestamps, DM role badge
+  - Wired into each `SessionCard` on `/sessions`; entries pre-loaded at the page level so cross-links resolve
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs
-- **P1** Multiple regional maps (Batch 3) — `/map` becomes a hub with named maps; locations tagged per map
-- **P1** Player comments per session (Batch 4) — login-required, DM moderation, per-session lock
-- **P2** Refactor: break `server.py` (now ~1500 lines) into route modules under `/app/backend/routes`
+- **P1** Multiple regional maps (skipped Batch 3) — `/map` becomes a hub with named maps; locations tagged per map
+- **P2** Refactor: break `server.py` (now ~1600 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
 - **P2** Image upload (currently URL-only)

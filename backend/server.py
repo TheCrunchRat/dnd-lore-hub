@@ -600,6 +600,7 @@ def session_to_out(doc: dict) -> dict:
         "notes": doc.get("notes", ""),
         "status": doc.get("status", "planned"),
         "rsvps": doc.get("rsvps", []),
+        "comments_locked": doc.get("comments_locked", False),
         "created_at": doc.get("created_at"),
         "updated_at": doc.get("updated_at"),
     }
@@ -675,6 +676,126 @@ async def delete_rsvp(session_id: str, player_name: str):
     await db.scheduled_sessions.update_one(
         {"id": session_id},
         {"$set": {"rsvps": rsvps, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    updated = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    return session_to_out(updated)
+
+
+# ---------------- Session Comments ----------------
+class SessionCommentIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    body: str = Field(min_length=1, max_length=4000)
+
+
+def comment_to_out(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "session_id": doc["session_id"],
+        "author_id": doc.get("author_id"),
+        "author_name": doc.get("author_name", "Wanderer"),
+        "author_role": doc.get("author_role", "player"),
+        "body": doc.get("body", ""),
+        "pinned": doc.get("pinned", False),
+        "edited": doc.get("edited", False),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api.get("/sessions/{session_id}/comments")
+async def list_comments(session_id: str):
+    session = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    cursor = db.session_comments.find(
+        {"session_id": session_id, "deleted": {"$ne": True}}, {"_id": 0}
+    ).sort([("pinned", -1), ("created_at", 1)])
+    items = await cursor.to_list(length=500)
+    return {
+        "session_id": session_id,
+        "comments_locked": session.get("comments_locked", False),
+        "comments": [comment_to_out(d) for d in items],
+    }
+
+
+@api.post("/sessions/{session_id}/comments")
+async def post_comment(session_id: str, body: SessionCommentIn, user: dict = Depends(get_current_user)):
+    session = await db.scheduled_sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.get("comments_locked") and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Comments are sealed for this session")
+    now = datetime.now(timezone.utc).isoformat()
+    cid = str(uuid.uuid4())
+    doc = {
+        "id": cid,
+        "session_id": session_id,
+        "author_id": user["id"],
+        "author_name": user.get("name") or user.get("email") or "Wanderer",
+        "author_role": user.get("role", "player"),
+        "body": body.body.strip(),
+        "pinned": False,
+        "edited": False,
+        "deleted": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.session_comments.insert_one(doc)
+    return comment_to_out(doc)
+
+
+@api.put("/sessions/{session_id}/comments/{comment_id}")
+async def edit_comment(session_id: str, comment_id: str, body: SessionCommentIn, user: dict = Depends(get_current_user)):
+    doc = await db.session_comments.find_one({"id": comment_id, "session_id": session_id})
+    if not doc or doc.get("deleted"):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    # Author can edit own; admin can edit any
+    if doc.get("author_id") != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the author or the Lanternkeeper may edit this")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.session_comments.update_one(
+        {"id": comment_id},
+        {"$set": {"body": body.body.strip(), "edited": True, "updated_at": now}},
+    )
+    updated = await db.session_comments.find_one({"id": comment_id}, {"_id": 0})
+    return comment_to_out(updated)
+
+
+@api.delete("/sessions/{session_id}/comments/{comment_id}")
+async def delete_comment(session_id: str, comment_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.session_comments.find_one({"id": comment_id, "session_id": session_id})
+    if not doc or doc.get("deleted"):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if doc.get("author_id") != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the author or the Lanternkeeper may delete this")
+    await db.session_comments.update_one({"id": comment_id}, {"$set": {"deleted": True}})
+    return {"ok": True}
+
+
+@api.post("/sessions/{session_id}/comments/{comment_id}/pin")
+async def toggle_pin_comment(session_id: str, comment_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the Lanternkeeper may pin comments")
+    doc = await db.session_comments.find_one({"id": comment_id, "session_id": session_id})
+    if not doc or doc.get("deleted"):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    new_state = not doc.get("pinned", False)
+    await db.session_comments.update_one({"id": comment_id}, {"$set": {"pinned": new_state}})
+    updated = await db.session_comments.find_one({"id": comment_id}, {"_id": 0})
+    return comment_to_out(updated)
+
+
+@api.post("/sessions/{session_id}/lock_comments")
+async def toggle_session_lock(session_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only the Lanternkeeper may lock comments")
+    session = await db.scheduled_sessions.find_one({"id": session_id})
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    new_state = not session.get("comments_locked", False)
+    await db.scheduled_sessions.update_one(
+        {"id": session_id},
+        {"$set": {"comments_locked": new_state, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
     updated = await db.scheduled_sessions.find_one({"id": session_id}, {"_id": 0})
     return session_to_out(updated)
@@ -1474,6 +1595,8 @@ async def on_startup():
     await db.magic_trees.create_index("id", unique=True)
     await db.magic_trees.create_index("slug", unique=True)
     await db.scheduled_sessions.create_index("scheduled_at")
+    await db.session_comments.create_index("id", unique=True)
+    await db.session_comments.create_index([("session_id", 1), ("created_at", 1)])
     await db.uploads.create_index("id", unique=True)
     for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
         await db[coll].create_index("id", unique=True)

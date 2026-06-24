@@ -3,6 +3,7 @@ import { Calendar, Clock, MapPin, Plus, Pencil, Trash2, X, Check, HelpCircle, Sa
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
+import SessionComments from "../components/SessionComments";
 
 const NAME_KEY = "lantern.diceName"; // share name with dice page
 const RSVP_KINDS = [
@@ -68,6 +69,7 @@ export default function Sessions() {
   const [nameDraft, setNameDraft] = useState("");
   const [showNameField, setShowNameField] = useState(false);
   const [tab, setTab] = useState("upcoming");
+  const [entries, setEntries] = useState([]); // for [[wiki]] resolution in comments
 
   const load = async () => {
     setLoading(true);
@@ -82,6 +84,10 @@ export default function Sessions() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    // Best-effort: load codex entries so comment [[wiki-links]] resolve
+    api.get("/entries", { params: { limit: 500 } }).then((r) => setEntries(r.data || [])).catch(() => {});
+  }, []);
 
   const now = Date.now();
   const upcoming = useMemo(
@@ -320,6 +326,8 @@ export default function Sessions() {
               onEdit={() => openEdit(s)}
               onDelete={() => remove(s)}
               isUpcoming={tab === "upcoming"}
+              entries={entries}
+              onLockChanged={(updated) => setSessions((all) => all.map((x) => (x.id === updated.id ? updated : x)))}
             />
           ))}
         </div>
@@ -339,7 +347,7 @@ export default function Sessions() {
   );
 }
 
-function SessionCard({ session, isDM, playerName, onRSVP, onClearRSVP, onEdit, onDelete, isUpcoming }) {
+function SessionCard({ session, isDM, playerName, onRSVP, onClearRSVP, onEdit, onDelete, isUpcoming, entries, onLockChanged }) {
   const yourRsvp = (session.rsvps || []).find((r) => r.player_name.toLowerCase() === (playerName || "").toLowerCase());
   const yesList = (session.rsvps || []).filter((r) => r.status === "yes");
   const maybeList = (session.rsvps || []).filter((r) => r.status === "maybe");
@@ -460,6 +468,12 @@ function SessionCard({ session, isDM, playerName, onRSVP, onClearRSVP, onEdit, o
               </button>
             </div>
           )}
+
+          <SessionComments
+            session={session}
+            entries={entries}
+            onLockChanged={onLockChanged}
+          />
         </div>
       </div>
     </article>
