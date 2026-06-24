@@ -7,6 +7,7 @@ import PCEditor from "../components/PCEditor";
 import CharacterBuilder from "../components/CharacterBuilder";
 import CharacterSheet from "../components/CharacterSheet";
 import SealedEntry from "../components/SealedEntry";
+import MarkdownView from "../components/MarkdownView";
 import { toast } from "sonner";
 
 const NAME_KEY = "lantern.diceName";
@@ -29,6 +30,7 @@ export default function EntryDetail() {
   const [sealed, setSealed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState([]);
+  const [allEntries, setAllEntries] = useState([]);
   const [pcEditorOpen, setPcEditorOpen] = useState(false);
   const playerName = (typeof window !== "undefined" && localStorage.getItem(NAME_KEY)) || "";
   const isPC = entry?.category === "character" && entry?.metadata?.role === "PC";
@@ -83,13 +85,20 @@ export default function EntryDetail() {
     api.get(`/entries/${slug}`)
       .then((r) => {
         setEntry(r.data);
-        return api.get("/entries", { params: { category: r.data.category, limit: 6 } });
+        return api.get("/entries", { params: { limit: 500 } });
       })
       .then((r) => {
-        if (r) setRelated((r.data || []).filter((e) => e.slug !== slug).slice(0, 3));
+        if (r) {
+          const all = r.data || [];
+          setAllEntries(all);
+          setRelated(
+            all
+              .filter((e) => e.category === (entry?.category) && e.slug !== slug)
+              .slice(0, 3)
+          );
+        }
       })
       .catch((err) => {
-        // Backend returns 403 with detail="sealed" for DM-only entries when viewed by non-admins
         if (err?.response?.status === 403 && err?.response?.data?.detail === "sealed") {
           setSealed(true);
           setEntry(null);
@@ -99,6 +108,15 @@ export default function EntryDetail() {
       })
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // Recompute related once the entry's category resolves (since the fetch order
+  // can race — entry comes first, then we use its category to slice the related list)
+  useEffect(() => {
+    if (!entry || allEntries.length === 0) return;
+    setRelated(
+      allEntries.filter((e) => e.category === entry.category && e.slug !== entry.slug).slice(0, 3)
+    );
+  }, [entry, allEntries]);
 
   if (loading) {
     return <div className="max-w-3xl mx-auto px-6 py-24 text-muted-bone" data-testid="detail-loading">Unfolding the page…</div>;
@@ -196,9 +214,12 @@ export default function EntryDetail() {
         </div>
 
         {entry.summary && (
-          <p className="font-serif-display text-xl md:text-2xl text-bone leading-snug border-l-2 border-[#FBBF24]/60 pl-5 mb-10">
-            {entry.summary}
-          </p>
+          <div
+            className="font-serif-display text-xl md:text-2xl text-bone leading-snug border-l-2 border-[#FBBF24]/60 pl-5 mb-10"
+            data-testid="entry-summary"
+          >
+            <MarkdownView source={entry.summary} entries={allEntries} compact className="prose-compact" />
+          </div>
         )}
 
         {entry.metadata && Object.keys(entry.metadata).length > 0 && (
@@ -217,11 +238,7 @@ export default function EntryDetail() {
         {isPC && <CharacterSheet entry={entry} />}
 
         {entry.content && (
-          <div className="prose-tome">
-            {entry.content.split(/\n\s*\n/).map((para, i) => (
-              <p key={i}>{para}</p>
-            ))}
-          </div>
+          <MarkdownView source={entry.content} entries={allEntries} data-testid="entry-content" />
         )}
 
         {related.length > 0 && (

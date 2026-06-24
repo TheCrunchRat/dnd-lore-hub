@@ -1,8 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Flame, Lock } from "lucide-react";
+import { markdownToPlain } from "../lib/markdown";
 
 export function EntryCard({ entry, basePath }) {
+  const summaryPlain = markdownToPlain(entry.summary || "", 200);
   return (
     <Link
       to={`${basePath}/${entry.slug}`}
@@ -43,7 +45,7 @@ export function EntryCard({ entry, basePath }) {
         {entry.title}
       </h3>
       {entry.subtitle && <p className="text-sm text-muted-bone italic mb-3">{entry.subtitle}</p>}
-      {entry.summary && <p className="text-sm text-muted-bone leading-relaxed line-clamp-3">{entry.summary}</p>}
+      {summaryPlain && <p className="text-sm text-muted-bone leading-relaxed line-clamp-3">{summaryPlain}</p>}
 
       {entry.tags?.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-1.5">

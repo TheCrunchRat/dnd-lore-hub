@@ -121,6 +121,87 @@
         padding-top: 0.25rem;
         color: #FBBF24;
     }
+    .prose-tome h1, .prose-tome h2, .prose-tome h3 {
+        font-family: 'Cormorant Garamond', serif;
+        color: #E6E3D8;
+        line-height: 1.1;
+        margin-top: 2rem;
+        margin-bottom: 0.85rem;
+    }
+    .prose-tome h1 { font-size: 2.25rem; }
+    .prose-tome h2 { font-size: 1.75rem; }
+    .prose-tome h3 { font-size: 1.35rem; }
+    .prose-tome strong { color: #E6E3D8; font-weight: 600; }
+    .prose-tome em { color: #FBBF24; font-style: italic; }
+    .prose-tome ul, .prose-tome ol { @apply text-bone leading-relaxed mb-4 pl-6; }
+    .prose-tome ul { list-style: none; }
+    .prose-tome ul > li { position: relative; padding-left: 0.5rem; margin-bottom: 0.35rem; }
+    .prose-tome ul > li::before {
+        content: '';
+        position: absolute;
+        left: -0.85rem;
+        top: 0.6rem;
+        width: 6px; height: 6px;
+        background: #FBBF24;
+        opacity: 0.6;
+        transform: rotate(45deg);
+    }
+    .prose-tome ol { list-style: decimal; }
+    .prose-tome ol > li { padding-left: 0.25rem; margin-bottom: 0.35rem; }
+    .prose-tome ol::marker { color: #FBBF24; }
+    .prose-tome blockquote {
+        border-left: 2px solid rgba(251, 191, 36, 0.5);
+        padding: 0.25rem 0 0.25rem 1rem;
+        margin: 1.25rem 0;
+        color: #9CA3AF;
+        font-family: 'Cormorant Garamond', serif;
+        font-style: italic;
+        font-size: 1.1rem;
+    }
+    .prose-tome a {
+        color: #FBBF24;
+        text-decoration: underline;
+        text-decoration-color: rgba(251, 191, 36, 0.35);
+        text-underline-offset: 3px;
+        transition: color 0.2s;
+    }
+    .prose-tome a:hover { color: #F59E0B; text-decoration-color: #F59E0B; }
+    .prose-tome a.codex-link {
+        text-decoration: none;
+        border-bottom: 1px dotted rgba(251, 191, 36, 0.5);
+        padding-bottom: 1px;
+    }
+    .prose-tome a.codex-link::before {
+        content: '◇';
+        margin-right: 0.25rem;
+        opacity: 0.6;
+        font-size: 0.75em;
+    }
+    .prose-tome a.codex-link:hover {
+        border-bottom-color: #F59E0B;
+        background: rgba(251, 191, 36, 0.06);
+    }
+    .prose-tome .codex-link-broken {
+        color: #6B7280;
+        text-decoration: line-through;
+        text-decoration-color: rgba(239, 68, 68, 0.5);
+        cursor: help;
+    }
+    .prose-tome code {
+        font-family: 'JetBrains Mono', monospace;
+        background: rgba(11, 14, 12, 0.6);
+        color: #FBBF24;
+        padding: 0.1rem 0.35rem;
+        border: 1px solid rgba(251, 191, 36, 0.2);
+        font-size: 0.85em;
+    }
+    /* Compact variant: no drop-cap, used in card previews and summaries */
+    .prose-tome.prose-compact p:first-of-type::first-letter {
+        font: inherit; float: none; padding: 0; color: inherit;
+    }
+    .prose-tome.prose-compact h1,
+    .prose-tome.prose-compact h2,
+    .prose-tome.prose-compact h3 { margin-top: 1rem; }
 
     /* Leaflet overrides for dark fantasy theme */
     .leaflet-container {

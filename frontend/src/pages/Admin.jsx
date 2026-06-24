@@ -8,6 +8,8 @@ import {
   Image as ImageIcon, Flame, Eye, ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import MarkdownEditor from "../components/MarkdownEditor";
+import { markdownToPlain } from "../lib/markdown";
 
 const emptyEntry = {
   category: "location",
@@ -347,6 +349,7 @@ export default function Admin() {
           editing={editing}
           draft={draft}
           setDraft={setDraft}
+          entries={entries}
           tagInput={tagInput}
           setTagInput={setTagInput}
           addTag={addTag}
@@ -405,7 +408,7 @@ function FilterChip({ active, onClick, testid, children }) {
 
 function EntryRow({ entry, onEdit, onTogglePin, onTogglePrivate, onDelete, confirming }) {
   const cat = CATEGORIES.find((c) => c.key === entry.category);
-  const preview = (entry.summary || entry.content || "").trim();
+  const preview = markdownToPlain(entry.summary || entry.content || "", 220);
   return (
     <div
       className="lantern-card p-4 flex items-start gap-4 group"
@@ -537,7 +540,7 @@ function IconAction({ onClick, active, testid, title, activeColor, children }) {
 // Editor Drawer
 // ============================================================================
 function EditorDrawer({
-  editing, draft, setDraft, tagInput, setTagInput, addTag, removeTag,
+  editing, draft, setDraft, entries, tagInput, setTagInput, addTag, removeTag,
   metaKey, setMetaKey, metaValue, setMetaValue, addMeta, removeMeta,
   saving, onSave, onClose,
 }) {
@@ -621,30 +624,27 @@ function EditorDrawer({
           </Section>
 
           {/* --- Section: Lore body --- */}
-          <Section title="Lore" subtitle="One or two sentences to summarise, then the full chronicle.">
+          <Section title="Lore" subtitle="One or two sentences to summarise, then the full chronicle. Use [[Entry Name]] to link.">
             <Field label="Summary" hint="1–2 sentences. Shown on cards and below the title.">
-              <textarea
-                rows={3}
+              <MarkdownEditor
                 value={draft.summary}
-                onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
-                data-testid="field-summary"
-                className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none resize-y"
+                onChange={(v) => setDraft({ ...draft, summary: v })}
+                entries={entries}
+                rows={4}
+                testid="field-summary"
+                placeholder="A drowning city of lanterns…"
+                helpHint="Keep it short — this is the hook."
               />
             </Field>
-            <Field
-              label="Content"
-              hint="Full body. Leave a blank line to break paragraphs."
-            >
-              <textarea
-                rows={10}
+            <Field label="Content" hint="Full body. Use **bold**, *italic*, # headings, > quotes, lists, and [[Entry]] cross-links.">
+              <MarkdownEditor
                 value={draft.content}
-                onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-                data-testid="field-content"
-                className="w-full px-3 py-2.5 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none resize-y font-mono text-sm leading-relaxed"
+                onChange={(v) => setDraft({ ...draft, content: v })}
+                entries={entries}
+                rows={14}
+                testid="field-content"
+                placeholder="The boards never stop creaking…"
               />
-              <div className="text-[10px] text-muted-bone mt-1">
-                {draft.content.length.toLocaleString()} chars · {draft.content.split(/\s+/).filter(Boolean).length.toLocaleString()} words
-              </div>
             </Field>
           </Section>
 

@@ -46,28 +46,23 @@
 
 ### Feb 2026 (this fork)
 - **MagicBackdrop** component: decorative `chain + vine + lantern with ember-flame` SVG, applied behind both `/magic` list page (right) and `/magic/:slug` tree page (left)
-- **Level requirement system on skill-tree nodes**:
-  - `level_required` integer (1–20) per node (saved/loaded from backend)
-  - Lock badge on node circle showing the level number
-  - **Hover tooltip** (SVG, inside the tree canvas) — "REQUIRES LEVEL N" when hovering a locked node (non-edit mode)
-  - **Click popup modal** — `LockedNodeModal` with SEALED ABILITY overline, lock-badged icon, "Requires Level N" banner, description, per-rank effects, flavour text
-- Replaced last remaining `window.confirm` (school deletion) with inline two-click confirm pattern
-- Restructured Magic page JSX so modals escape the `z-10` content stacking context and properly overlay the global navbar (z-40)
-- **Refactor**: split `MagicTree.jsx` (1086 → 387 lines) into:
-  - `components/magic-tree/constants.js` — CANVAS dims, SIZE_*, ICON_OPTIONS, `uid`, `curvedPath`, `hexToRgb`, `createsCycle`
-  - `components/magic-tree/TreeCanvas.jsx` — SVG canvas + nodes + hover tooltip (presentational, no state)
-  - `components/magic-tree/NodeEditor.jsx` — side-panel node editor/viewer
-  - `components/magic-tree/SchoolSettings.jsx` — slide-over settings + two-click delete confirm
-  - `components/magic-tree/LockedNodeModal.jsx` — level-locked popup
-  - All previously-passing `data-testid`s retained 1:1; iteration_4 testing 100% pass.
-- **Per-entry DM-Only visibility toggle** (Codex):
-  - New `is_private: bool` on the Entry model. `GET /api/entries` filters out private entries for non-admins; `GET /api/entries/:slug` returns **403 with `{"detail": "sealed"}`** for non-admins; `/stats` aggregates also exclude private entries for non-admins.
-  - Admin UI: Lock/Unlock quick-toggle on each row (`toggle-private-<slug>`), `DM Only` pill on the row + EntryCard, checkbox in editor drawer (`field-is-private`).
-  - **`SealedEntry.jsx`** component: full-page placeholder shown to players who hit a private entry URL — watchful ember-eye + sprawling vines/leaves SVG with "Sealed by the Lanternkeeper" overline, "This page is not yours to read" headline, and "Return to the Codex" link.
-  - Pytest regression suite at `/app/backend/tests/test_private_entries.py`; iteration_5 testing 100% pass.
+- **Level requirement system on skill-tree nodes** (lock badge + hover tooltip + click popup `LockedNodeModal`)
+- Replaced all `window.confirm`/`window.prompt` with inline two-click confirm
+- **Refactor**: split `MagicTree.jsx` (1086 → 387 lines) into `components/magic-tree/*`
+- **Per-entry DM-Only visibility toggle**: `is_private` field, list/detail filtering, `SealedEntry.jsx` watchful-eye-with-vines placeholder page
+- **Admin panel revamp**: 5 quick-link tiles, 4 stat tiles, search + sort dropdown, card-row entries with thumbnails, sectioned editor drawer with field hints
+- **Markdown editor + cross-linking** (Batch 1 of 4):
+  - `lib/markdown.js` — marked + DOMPurify pipeline with `[[wiki-link]]` and `[[slug|label]]` expansion (resolves by slug → title → broken-link span)
+  - `components/MarkdownView.jsx` — renders sanitised HTML; delegates internal anchor clicks to React Router for SPA navigation
+  - `components/MarkdownEditor.jsx` — controlled textarea with toolbar (B/I/H/lists/quote/link/code/codex), live split-pane preview, `[[` autocomplete dropdown matching codex entries, Ctrl+B/I/K shortcuts
+  - Wired into Admin summary + content fields, EntryDetail summary + content rendering, EntryCard preview (via `markdownToPlain`)
+  - Custom `.prose-tome` styles for headings/lists/blockquote/bold/italic/code/codex-link/broken-link with the lantern aesthetic
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs
+- **P1** Image upload (Batch 2) — Emergent managed object storage; replaces URL-only input
+- **P1** Multiple regional maps (Batch 3) — `/map` becomes a hub with named maps; locations tagged per map
+- **P1** Player comments per session (Batch 4) — login-required, DM moderation, per-session lock
 - **P2** Refactor: break `server.py` (now ~1370 lines) into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
