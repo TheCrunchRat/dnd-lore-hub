@@ -90,18 +90,18 @@
   - Backend `PCIn` extended with `resource_name / resource_max / resource_current / resource_color`; update path now allows explicit clearing by sending empty/null (the standard `if v is not None` filter is bypassed for these specific fields). 0 is preserved as a valid current value.
   - Frontend `components/ResourceBar.jsx`: one configurable bar per character — name + max + current + colour. Owner/DM gets `-1 / +1 / Fill` quick buttons, a slider for fine-tuning, and a config modal to rename/recolour or remove. Gradient progress bar with ember glow. Hidden for non-editors when not configured; shows an "Add a resource" stub for editors.
   - Wired into `CharacterSheet` at the top of the stat blocks.
+- **Spell System — Batch C (interactive)**:
+  - New `components/SpellManager.jsx` — clickable spell-slot pips per level (mark spent / restore), Long-Rest button that empties `spell_slots_used`, and tap-to-toggle Prepared spells (subset of `spells_known` stored as `spells_prepared`; legacy PCs with no `spells_prepared` are treated as "all prepared")
+  - Backend `PlayerCharacterIn` already supports `spells_prepared` / `spell_slots_used`; PUT merges them into metadata
+  - `CharacterSheet` now renders `<SpellManager />` in place of the old read-only blocks
+  - Hardening: `PlayerCharacterIn.level` default flipped from 1 → None so a minimal PUT can no longer reset character level
+  - EntryDetail legacy properties card now also filters `spells_prepared`, `spell_slots_used`, `resource_*` to avoid the `[object Object]` leak
+  - Test coverage: `/app/backend/tests/test_spells.py` (6/6 pass) — create, slot merge, prepared merge, long rest, anon 403, public read
 
 ## Backlog / Next
-- **P0** Spell system overhaul (Batches C + D — user requested 2e/all-four):
-  - Batch C: per-level spell-slot tracker (checkboxes) + prepared/known toggle
-  - Batch D: redesigned spell browser (search/filter by school + level + description) + DM-managed homebrew spells in the rules library
+- **P1** Spell system Batch D — redesigned spell browser (search/filter by school + level + description) + DM-managed homebrew spells in the rules library
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
 - **P2** Refactor: break `server.py` (now ~2000 lines) into route modules under `/app/backend/routes`
-- **P2** Markdown rich-text editor (currently plain-text paragraph split)
-- **P2** Cross-linking between entries (`[[mention]]` syntax)
-- **P2** Image upload (currently URL-only)
-- **P2** Multiple regional maps (per-faction / per-act)
-- **P3** Player-facing comments / questions per session
 - **P3** Backend min/max enforcement for `level_required` (currently UI-only 1–20)
 
 ## Test Credentials

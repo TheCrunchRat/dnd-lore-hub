@@ -1111,7 +1111,7 @@ class PlayerCharacterIn(BaseModel):
     image_url: Optional[str] = ""
     race: Optional[str] = ""
     char_class: Optional[str] = ""
-    level: Optional[int] = 1
+    level: Optional[int] = None
     alignment: Optional[str] = ""
     pronouns: Optional[str] = ""
     # --- 5e SRD fields (all optional so legacy editor still works) ---
