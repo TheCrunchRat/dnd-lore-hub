@@ -135,7 +135,9 @@ export default function EntryDetail() {
         </Link>
 
         <div className="flex items-center gap-3 flex-wrap mb-4">
-          <div className="text-xs tracking-[0.35em] uppercase text-lantern">{entry.category}</div>
+          <div className="text-xs tracking-[0.35em] uppercase text-lantern" data-testid="detail-overline">
+            {cat?.plural || cat?.label || entry.category}
+          </div>
           {entry.is_private && (
             <span
               className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.3em] uppercase text-[#FBBF24] border border-[#FBBF24]/40 bg-[#FBBF24]/5 px-2 py-1"
