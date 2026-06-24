@@ -1,13 +1,17 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import * as Icons from "lucide-react";
-import { ArrowLeft, Plus, Save, X, Pencil, Trash2, Link2, Unlink, Settings2 } from "lucide-react";
+import { ArrowLeft, Plus, Save, X, Pencil, Trash2, Link2, Unlink, Settings2, Minus } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
-const CANVAS_W = 1100;
-const CANVAS_H = 760;
+const CANVAS_W = 1400;
+const CANVAS_H = 1000;
+
+const SIZE_RADIUS = { small: 22, normal: 32, large: 44, huge: 56 };
+const SIZE_ICON = { small: 16, normal: 22, large: 30, huge: 38 };
+const SIZE_FONT = { small: 13, normal: 16, large: 20, huge: 24 };
 
 const ICON_OPTIONS = [
   "Sparkles", "Flame", "Eye", "Shield", "Compass", "Zap", "Sun", "Moon", "Star",
@@ -105,9 +109,27 @@ export default function MagicTree() {
       x: 0.5,
       y: 0.5,
       requires: [],
+      max_rank: 1,
+      current_rank: 0,
+      tier_size: "normal",
+      color: null,
+      rank_descriptions: [],
     };
     setTree((t) => ({ ...t, nodes: [...(t.nodes || []), newNode] }));
     setSelectedNodeId(newNode.id);
+    setDirty(true);
+  };
+
+  const cycleRank = (id, delta) => {
+    setTree((t) => ({
+      ...t,
+      nodes: t.nodes.map((n) => {
+        if (n.id !== id) return n;
+        const max = n.max_rank || 1;
+        const next = Math.max(0, Math.min(max, (n.current_rank || 0) + delta));
+        return { ...n, current_rank: next };
+      }),
+    }));
     setDirty(true);
   };
 
@@ -364,6 +386,14 @@ export default function MagicTree() {
               const isHovered = hoveredNodeId === n.id;
               const isLinkTarget = linkingFromId && linkingFromId !== n.id;
               const Icon = Icons[n.icon] || Icons.Sparkles;
+              const size = n.tier_size || "normal";
+              const r = SIZE_RADIUS[size] || SIZE_RADIUS.normal;
+              const iconSize = SIZE_ICON[size] || 22;
+              const fontSize = SIZE_FONT[size] || 16;
+              const nodeColor = n.color || accent;
+              const maxRank = Math.max(1, n.max_rank || 1);
+              const curRank = Math.max(0, Math.min(maxRank, n.current_rank || 0));
+              const isMaxed = curRank >= maxRank;
               return (
                 <g
                   key={n.id}
@@ -375,35 +405,50 @@ export default function MagicTree() {
                   onClick={(e) => { if (!editMode) { e.stopPropagation(); setSelectedNodeId(n.id); } }}
                   data-testid={`node-${n.id}`}
                 >
-                  {/* glow halo */}
-                  <circle r={isSelected || isHovered ? 56 : 42} fill="url(#nodeGlow)" opacity={isHovered || isSelected ? 1 : 0.7} />
-                  {/* node body */}
+                  <circle r={isSelected || isHovered ? r + 18 : r + 10} fill="url(#nodeGlow)" opacity={isHovered || isSelected ? 1 : 0.7} />
                   <circle
-                    r="28"
+                    r={r}
                     fill="#0B0E0C"
-                    stroke={isLinkTarget ? "#FBBF24" : accent}
-                    strokeWidth={isSelected ? 2.5 : 1.5}
+                    stroke={isLinkTarget ? "#FBBF24" : nodeColor}
+                    strokeWidth={isSelected ? 3 : isMaxed ? 2.5 : 1.5}
                     strokeDasharray={isLinkTarget ? "4 3" : ""}
                   />
-                  {/* inner ring */}
-                  <circle r="22" fill="none" stroke={accent} strokeOpacity="0.25" />
-                  {/* icon — render lucide via foreignObject */}
-                  <foreignObject x={-12} y={-12} width="24" height="24" style={{ pointerEvents: "none" }}>
-                    <div style={{ width: 24, height: 24, color: accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon size={20} strokeWidth={1.5} />
+                  <circle r={r - 6} fill="none" stroke={nodeColor} strokeOpacity={isMaxed ? "0.6" : "0.22"} />
+                  <foreignObject x={-iconSize/2} y={-iconSize/2} width={iconSize} height={iconSize} style={{ pointerEvents: "none" }}>
+                    <div style={{ width: iconSize, height: iconSize, color: nodeColor, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon size={iconSize - 4} strokeWidth={1.5} />
                     </div>
                   </foreignObject>
-                  {/* name label */}
+                  {/* Rank pips around the bottom-arc */}
+                  {maxRank > 1 && (() => {
+                    const pips = [];
+                    const arc = Math.PI * 0.6; // 108deg arc at bottom
+                    const startAngle = Math.PI / 2 - arc / 2; // start to the right-below
+                    const stepAngle = arc / Math.max(1, maxRank - 1);
+                    for (let i = 0; i < maxRank; i++) {
+                      const a = startAngle + stepAngle * i;
+                      const pr = r + 8;
+                      const px = Math.cos(a) * pr;
+                      const py = Math.sin(a) * pr;
+                      const filled = i < curRank;
+                      pips.push(
+                        <circle key={i} cx={px} cy={py} r={3.5}
+                          fill={filled ? nodeColor : "#0B0E0C"}
+                          stroke={nodeColor} strokeWidth={1}
+                          style={{ filter: filled ? `drop-shadow(0 0 3px ${nodeColor})` : "none" }} />
+                      );
+                    }
+                    return pips;
+                  })()}
                   <text
-                    x="0"
-                    y="48"
+                    x="0" y={r + (maxRank > 1 ? 26 : 18)}
                     textAnchor="middle"
                     fontFamily="'Cormorant Garamond', serif"
-                    fontSize="16"
+                    fontSize={fontSize}
                     fill={isSelected || isHovered ? "#FBBF24" : "#E6E3D8"}
                     style={{ pointerEvents: "none", transition: "fill 200ms" }}
                   >
-                    {n.name}
+                    {n.name}{maxRank > 1 ? ` · ${curRank}/${maxRank}` : ""}
                   </text>
                 </g>
               );
@@ -435,6 +480,7 @@ export default function MagicTree() {
               onStartLink={() => setLinkingFromId(linkingFromId === selected.id ? null : selected.id)}
               linkingFromId={linkingFromId}
               onClose={() => setSelectedNodeId(null)}
+              onCycleRank={(delta) => cycleRank(selected.id, delta)}
             />
           ) : (
             <div>
@@ -483,19 +529,22 @@ export default function MagicTree() {
   );
 }
 
-function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartLink, linkingFromId, onClose }) {
+function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartLink, linkingFromId, onClose, onCycleRank }) {
   const Icon = Icons[node.icon] || Icons.Sparkles;
   const parents = tree.nodes.filter((n) => node.requires.includes(n.id));
+  const maxRank = Math.max(1, node.max_rank || 1);
+  const curRank = Math.max(0, Math.min(maxRank, node.current_rank || 0));
+  const nodeColor = node.color || accent;
 
   return (
     <div data-testid={`node-editor-${node.id}`}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border flex items-center justify-center" style={{ borderColor: accent }}>
-            <Icon size={18} style={{ color: accent }} strokeWidth={1.5} />
+          <div className="w-10 h-10 rounded-full border flex items-center justify-center" style={{ borderColor: nodeColor }}>
+            <Icon size={18} style={{ color: nodeColor }} strokeWidth={1.5} />
           </div>
           <div>
-            <div className="text-[10px] tracking-[0.3em] uppercase" style={{ color: accent }}>Ability</div>
+            <div className="text-[10px] tracking-[0.3em] uppercase" style={{ color: nodeColor }}>Ability</div>
             {editMode ? (
               <input
                 value={node.name}
@@ -513,9 +562,30 @@ function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartL
         </button>
       </div>
 
+      {/* Rank progression — available to everyone (player and DM) */}
+      <div className="lantern-card p-3 mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] tracking-[0.3em] uppercase text-lantern">Rank</span>
+          <div className="flex gap-1">
+            {Array.from({ length: maxRank }).map((_, i) => (
+              <span key={i} className="w-2.5 h-2.5 rounded-full" style={{ background: i < curRank ? nodeColor : "transparent", border: `1px solid ${nodeColor}` }} />
+            ))}
+          </div>
+          <span className="text-sm text-bone ml-1">{curRank}/{maxRank}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onCycleRank(-1)} data-testid="rank-minus" className="p-1.5 border border-rust text-muted-bone hover:text-bone disabled:opacity-30" disabled={curRank === 0}>
+            <Minus className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => onCycleRank(+1)} data-testid="rank-plus" className="p-1.5 border border-rust text-muted-bone hover:text-lantern disabled:opacity-30" disabled={curRank === maxRank}>
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
       {editMode ? (
         <textarea
-          rows={6}
+          rows={4}
           value={node.description}
           onChange={(e) => onChange({ description: e.target.value })}
           data-testid="edit-node-description"
@@ -525,23 +595,91 @@ function NodeEditor({ node, accent, editMode, tree, onChange, onDelete, onStartL
         <p className="text-sm text-bone leading-relaxed mb-4">{node.description || <span className="text-muted-bone italic">No description yet.</span>}</p>
       )}
 
+      {/* Per-rank descriptions (read-only show, edit-mode input) */}
+      {((node.rank_descriptions && node.rank_descriptions.length) || editMode) && (
+        <div className="mb-4">
+          <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-2">Per-rank effect</div>
+          {editMode ? (
+            <textarea
+              rows={Math.max(2, maxRank)}
+              value={(node.rank_descriptions || []).join("\n")}
+              onChange={(e) => onChange({ rank_descriptions: e.target.value.split("\n") })}
+              placeholder={`One line per rank — e.g.\nRank 1: +1 to attack\nRank 2: +2 to attack\n…`}
+              className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none resize-y text-sm"
+            />
+          ) : (
+            <ol className="space-y-1 text-sm">
+              {(node.rank_descriptions || []).map((rd, i) => (
+                <li key={i} className={`flex items-start gap-2 ${i < curRank ? "text-bone" : "text-muted-bone"}`}>
+                  <span className={`text-[10px] tracking-widest uppercase mt-1 ${i < curRank ? "text-lantern" : "text-muted-bone"}`}>R{i+1}</span>
+                  <span>{rd}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
+
       {editMode && (
         <>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">Max rank (1-5)</div>
+              <input
+                type="number" min={1} max={5}
+                value={maxRank}
+                onChange={(e) => onChange({ max_rank: Math.max(1, Math.min(5, parseInt(e.target.value || "1", 10))) })}
+                data-testid="edit-max-rank"
+                className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none"
+              />
+            </div>
+            <div>
+              <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">Node size</div>
+              <select
+                value={node.tier_size || "normal"}
+                onChange={(e) => onChange({ tier_size: e.target.value })}
+                data-testid="edit-tier-size"
+                className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none"
+              >
+                <option value="small">Small</option>
+                <option value="normal">Normal</option>
+                <option value="large">Large (keystone)</option>
+                <option value="huge">Huge (capstone)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">Node color (override)</div>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={node.color || accent}
+                onChange={(e) => onChange({ color: e.target.value })}
+                className="w-12 h-9 bg-transparent border border-rust cursor-pointer"
+              />
+              <input
+                type="text"
+                value={node.color || ""}
+                onChange={(e) => onChange({ color: e.target.value || null })}
+                placeholder="(uses tree accent)"
+                className="flex-1 px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none font-mono text-xs"
+              />
+              {node.color && (
+                <button onClick={() => onChange({ color: null })} className="text-[10px] uppercase tracking-widest text-muted-bone hover:text-bone">Reset</button>
+              )}
+            </div>
+          </div>
+
           <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-2">Icon</div>
           <div className="grid grid-cols-8 gap-1 mb-4 max-h-32 overflow-y-auto" data-testid="icon-picker">
             {ICON_OPTIONS.map((name) => {
               const I = Icons[name] || Icons.Sparkles;
               const active = node.icon === name;
               return (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => onChange({ icon: name })}
-                  title={name}
-                  data-testid={`icon-${name}`}
-                  className={`p-1.5 border ${active ? "border-[#FBBF24] bg-[#FBBF24]/10" : "border-rust hover:border-[#FBBF24]/40"}`}
-                >
-                  <I size={16} style={{ color: active ? accent : "#9CA3AF" }} strokeWidth={1.5} />
+                <button key={name} type="button" onClick={() => onChange({ icon: name })} title={name} data-testid={`icon-${name}`}
+                  className={`p-1.5 border ${active ? "border-[#FBBF24] bg-[#FBBF24]/10" : "border-rust hover:border-[#FBBF24]/40"}`}>
+                  <I size={16} style={{ color: active ? nodeColor : "#9CA3AF" }} strokeWidth={1.5} />
                 </button>
               );
             })}

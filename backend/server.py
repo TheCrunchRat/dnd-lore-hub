@@ -446,9 +446,18 @@ class MagicNode(BaseModel):
     name: str
     description: Optional[str] = ""
     icon: Optional[str] = "Sparkles"
-    x: float = 0.5  # 0..1 percentage on canvas
+    x: float = 0.5
     y: float = 0.5
-    requires: List[str] = Field(default_factory=list)  # parent node ids
+    requires: List[str] = Field(default_factory=list)
+    # Rank progression: max 1-5, current 0..max
+    max_rank: Optional[int] = 1
+    current_rank: Optional[int] = 0
+    # Visual: small/normal/large/huge changes the rendered size
+    tier_size: Optional[str] = "normal"
+    # Optional color override (defaults to the tree's accent_color)
+    color: Optional[str] = None
+    # Optional per-rank descriptions ("rank 1: …", "rank 2: …")
+    rank_descriptions: Optional[List[str]] = Field(default_factory=list)
 
 
 class MagicTreeIn(BaseModel):
