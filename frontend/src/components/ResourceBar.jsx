@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Minus, Settings2, X, Save, Flame } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { toast } from "sonner";
@@ -211,7 +212,7 @@ function ResourceConfig({ initialName, initialMax, initialColor, onClose, onSave
   const [name, setName] = useState(initialName || "Mana");
   const [max, setMax] = useState(initialMax || 8);
   const [color, setColor] = useState(initialColor || "#FBBF24");
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 bg-[#0B0E0C]/80 backdrop-blur-sm flex items-center justify-center px-4" onClick={onClose} data-testid="resource-config-overlay">
       <div className="lantern-card vine-frame p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()} data-testid="resource-config">
         <div className="flex items-center justify-between mb-4">
@@ -267,6 +268,7 @@ function ResourceConfig({ initialName, initialMax, initialColor, onClose, onSave
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
