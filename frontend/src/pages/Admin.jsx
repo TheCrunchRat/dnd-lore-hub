@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import api, { CATEGORIES, formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
-import { Plus, Trash2, Save, X, Pin, PinOff, Pencil } from "lucide-react";
+import { Plus, Trash2, Save, X, Pin, PinOff, Pencil, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
 
 const emptyEntry = {
@@ -15,6 +15,7 @@ const emptyEntry = {
   tags: [],
   metadata: {},
   pinned: false,
+  is_private: false,
 };
 
 export default function Admin() {
@@ -76,6 +77,7 @@ export default function Admin() {
       tags: e.tags || [],
       metadata: e.metadata || {},
       pinned: !!e.pinned,
+      is_private: !!e.is_private,
     });
     setTagInput("");
   };
@@ -131,6 +133,16 @@ export default function Admin() {
   const togglePin = async (e) => {
     try {
       await api.put(`/entries/${e.id}`, { ...e, pinned: !e.pinned });
+      await fetchEntries();
+    } catch (err) {
+      toast.error(formatApiError(err));
+    }
+  };
+
+  const togglePrivate = async (e) => {
+    try {
+      await api.put(`/entries/${e.id}`, { ...e, is_private: !e.is_private });
+      toast.success(!e.is_private ? "Entry sealed (DM only)" : "Entry unsealed (public)");
       await fetchEntries();
     } catch (err) {
       toast.error(formatApiError(err));
@@ -223,11 +235,29 @@ export default function Admin() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-[10px] tracking-[0.3em] uppercase text-lantern">{e.category}</span>
                   {e.pinned && <span className="text-[10px] tracking-[0.25em] uppercase text-[#FBBF24]/80">· pinned</span>}
+                  {e.is_private && (
+                    <span
+                      className="text-[10px] tracking-[0.25em] uppercase text-[#FBBF24] border border-[#FBBF24]/40 bg-[#FBBF24]/5 px-1.5 py-0.5 inline-flex items-center gap-1"
+                      data-testid={`dm-only-${e.slug}`}
+                    >
+                      <Lock className="w-2.5 h-2.5" /> DM Only
+                    </span>
+                  )}
                 </div>
                 <div className="font-serif-display text-xl text-bone">{e.title}</div>
                 {e.subtitle && <div className="text-sm text-muted-bone italic">{e.subtitle}</div>}
               </div>
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => togglePrivate(e)}
+                  data-testid={`toggle-private-${e.slug}`}
+                  className={`p-2 transition-colors ${
+                    e.is_private ? "text-[#FBBF24] hover:text-[#F59E0B]" : "text-muted-bone hover:text-lantern"
+                  }`}
+                  title={e.is_private ? "Unseal (make public)" : "Seal (DM only)"}
+                >
+                  {e.is_private ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                </button>
                 <button
                   onClick={() => togglePin(e)}
                   data-testid={`pin-${e.slug}`}
@@ -425,16 +455,37 @@ export default function Admin() {
                 )}
               </Field>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={draft.pinned}
-                  onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })}
-                  data-testid="field-pinned"
-                  className="accent-[#FBBF24]"
-                />
-                <span className="text-sm text-bone">Pin to top of list</span>
-              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={draft.pinned}
+                    onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })}
+                    data-testid="field-pinned"
+                    className="accent-[#FBBF24]"
+                  />
+                  <span className="text-sm text-bone">Pin to top of list</span>
+                </label>
+                <label
+                  className={`flex items-center gap-2 cursor-pointer p-2 border transition-colors ${
+                    draft.is_private
+                      ? "border-[#FBBF24]/50 bg-[#FBBF24]/5"
+                      : "border-rust hover:border-[#FBBF24]/30"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draft.is_private}
+                    onChange={(e) => setDraft({ ...draft, is_private: e.target.checked })}
+                    data-testid="field-is-private"
+                    className="accent-[#FBBF24]"
+                  />
+                  <Lock className={`w-3.5 h-3.5 ${draft.is_private ? "text-[#FBBF24]" : "text-muted-bone"}`} />
+                  <span className={`text-sm ${draft.is_private ? "text-lantern" : "text-bone"}`}>
+                    DM Only (hide from players)
+                  </span>
+                </label>
+              </div>
             </div>
           </div>
         </div>

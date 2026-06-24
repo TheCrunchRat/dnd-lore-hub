@@ -1,0 +1,23 @@
+{
+  "summary": "Verified the new DM-Only / Public visibility toggle end-to-end for both backend and frontend. Created /app/backend/tests/test_private_entries.py covering list filter, detail 403 sealed marker, category filter, search filter, and stats divergence between anon and DM — all 4 pytest cases pass. Playwright run confirmed: DM-side Lock toggle on the admin row flips state with toast + DM Only pill, DM Only badge on detail page, EntryCard DM Only pill in DM's /lore grid, anon listing hides the sealed entry (lore was empty after sealing because The Sundering was the only lore item — correct behavior), anon detail URL renders the SealedEntry component with watchful-eye SVG, overline 'Sealed by the Lanternkeeper', headline 'This page is not yours to read', and a working RETURN-to-Codex link pointing to '/'. Admin editor drawer shows the 'DM Only (hide from players)' checkbox (data-testid='field-is-private') alongside 'Pin to top of list'. The Sundering was sealed during testing and reverted to is_private=false — confirmed via API.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_private_entries.py",
+    "/app/test_reports/pytest/iter5_private.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now ~1370 lines and over the recommended 700-line threshold — should be split into modules (auth, entries, magic, sessions, pcs, rules, seeding). Not blocking this feature.",
+    "Both togglePin and togglePrivate in Admin.jsx PUT the entire EntryOut object back to PUT /entries/{id}; since EntryIn uses extra='ignore' the id/slug/timestamps are dropped harmlessly, but it's a minor over-fetch pattern.",
+    "EntryDetail's category overline always shows the lowercase entry.category string ('lore' rather than 'Lore & History'). Pre-existing, not part of this change."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1 (loaded from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Sealed 'the-sundering' during the run (both pytest and Playwright); reverted to is_private=false on completion. Seed state is clean.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All DM-Only visibility flows are working end-to-end. Backend regression suite for this feature lives at /app/backend/tests/test_private_entries.py and includes auto-cleanup. The Sundering lore entry is used as the test fixture and is always reverted to public after each test. SealedEntry component selectors: sealed-entry, sealed-overline, sealed-back-link. Admin row selectors: toggle-private-<slug>, dm-only-<slug>, edit-<slug>. Editor field: field-is-private. Detail badge: dm-only-badge. Card pill: card-dm-only-<slug>.",
+  "rca of the issue": "N/A — feature works as designed."
+}

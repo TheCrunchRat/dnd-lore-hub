@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api, { CATEGORIES, formatApiError } from "../lib/api";
-import { ArrowLeft, Calendar, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Trash2, Lock } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import PCEditor from "../components/PCEditor";
 import CharacterBuilder from "../components/CharacterBuilder";
 import CharacterSheet from "../components/CharacterSheet";
+import SealedEntry from "../components/SealedEntry";
 import { toast } from "sonner";
 
 const NAME_KEY = "lantern.diceName";
@@ -25,6 +26,7 @@ export default function EntryDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [entry, setEntry] = useState(null);
+  const [sealed, setSealed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState([]);
   const [pcEditorOpen, setPcEditorOpen] = useState(false);
@@ -77,6 +79,7 @@ export default function EntryDetail() {
 
   useEffect(() => {
     setLoading(true);
+    setSealed(false);
     api.get(`/entries/${slug}`)
       .then((r) => {
         setEntry(r.data);
@@ -85,12 +88,24 @@ export default function EntryDetail() {
       .then((r) => {
         if (r) setRelated((r.data || []).filter((e) => e.slug !== slug).slice(0, 3));
       })
-      .catch(() => setEntry(null))
+      .catch((err) => {
+        // Backend returns 403 with detail="sealed" for DM-only entries when viewed by non-admins
+        if (err?.response?.status === 403 && err?.response?.data?.detail === "sealed") {
+          setSealed(true);
+          setEntry(null);
+        } else {
+          setEntry(null);
+        }
+      })
       .finally(() => setLoading(false));
   }, [slug]);
 
   if (loading) {
     return <div className="max-w-3xl mx-auto px-6 py-24 text-muted-bone" data-testid="detail-loading">Unfolding the page…</div>;
+  }
+
+  if (sealed) {
+    return <SealedEntry backTo="/" backLabel="Return to the Codex" />;
   }
 
   if (!entry) {
@@ -119,7 +134,17 @@ export default function EntryDetail() {
           <ArrowLeft className="w-3.5 h-3.5" /> Back to {cat?.plural || "Codex"}
         </Link>
 
-        <div className="text-xs tracking-[0.35em] uppercase text-lantern mb-4">{entry.category}</div>
+        <div className="flex items-center gap-3 flex-wrap mb-4">
+          <div className="text-xs tracking-[0.35em] uppercase text-lantern">{entry.category}</div>
+          {entry.is_private && (
+            <span
+              className="inline-flex items-center gap-1.5 text-[10px] tracking-[0.3em] uppercase text-[#FBBF24] border border-[#FBBF24]/40 bg-[#FBBF24]/5 px-2 py-1"
+              data-testid="dm-only-badge"
+            >
+              <Lock className="w-3 h-3" /> DM Only
+            </span>
+          )}
+        </div>
         <h1 className="font-serif-display text-4xl md:text-6xl text-bone leading-none ember-glow mb-4">
           {entry.title}
         </h1>

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { Flame } from "lucide-react";
+import { Flame, Lock } from "lucide-react";
 
 export function EntryCard({ entry, basePath }) {
   return (
@@ -27,6 +27,14 @@ export function EntryCard({ entry, basePath }) {
       {entry.pinned && (
         <div className="absolute top-3 right-3 text-[10px] tracking-[0.25em] uppercase text-lantern bg-[#0B0E0C]/80 px-2 py-1 border border-[#FBBF24]/30">
           Pinned
+        </div>
+      )}
+      {entry.is_private && (
+        <div
+          className="absolute top-3 left-3 inline-flex items-center gap-1 text-[10px] tracking-[0.25em] uppercase text-[#FBBF24] bg-[#0B0E0C]/85 px-2 py-1 border border-[#FBBF24]/40"
+          data-testid={`card-dm-only-${entry.slug}`}
+        >
+          <Lock className="w-3 h-3" /> DM Only
         </div>
       )}
 

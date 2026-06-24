@@ -168,6 +168,7 @@ class EntryIn(BaseModel):
     tags: List[str] = Field(default_factory=list)
     metadata: dict = Field(default_factory=dict)
     pinned: bool = False
+    is_private: bool = False  # DM-only: hidden from non-admin list/detail responses
     map_x: Optional[float] = None  # 0-100 percent X on world map
     map_y: Optional[float] = None  # 0-100 percent Y on world map
 
@@ -199,6 +200,7 @@ def entry_to_out(doc: dict) -> dict:
         "tags": doc.get("tags", []),
         "metadata": doc.get("metadata", {}),
         "pinned": doc.get("pinned", False),
+        "is_private": doc.get("is_private", False),
         "map_x": doc.get("map_x"),
         "map_y": doc.get("map_y"),
         "created_at": doc.get("created_at"),
@@ -279,7 +281,12 @@ async def refresh(request: Request, response: Response):
 
 # ---------------- Entry Endpoints ----------------
 @api.get("/entries")
-async def list_entries(category: Optional[str] = None, q: Optional[str] = None, limit: int = 200):
+async def list_entries(
+    category: Optional[str] = None,
+    q: Optional[str] = None,
+    limit: int = 200,
+    user: Optional[dict] = Depends(get_optional_user),
+):
     query: dict = {}
     if category and category in CATEGORIES:
         query["category"] = category
@@ -290,16 +297,23 @@ async def list_entries(category: Optional[str] = None, q: Optional[str] = None, 
             {"content": {"$regex": q, "$options": "i"}},
             {"tags": {"$regex": q, "$options": "i"}},
         ]
+    # Hide DM-only entries from non-admins
+    if not user or user.get("role") != "admin":
+        query["is_private"] = {"$ne": True}
     cursor = db.entries.find(query, {"_id": 0}).sort([("pinned", -1), ("updated_at", -1)]).limit(limit)
     items = await cursor.to_list(length=limit)
     return [entry_to_out(d) for d in items]
 
 
 @api.get("/entries/{entry_id}")
-async def get_entry(entry_id: str):
+async def get_entry(entry_id: str, user: Optional[dict] = Depends(get_optional_user)):
     doc = await db.entries.find_one({"$or": [{"id": entry_id}, {"slug": entry_id}]}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Entry not found")
+    # Sealed (DM-only) entries return 403 with a "sealed" marker for non-admins so the
+    # frontend can render its decorative SealedEntry page instead of a generic 404.
+    if doc.get("is_private") and (not user or user.get("role") != "admin"):
+        raise HTTPException(status_code=403, detail="sealed")
     return entry_to_out(doc)
 
 
@@ -349,8 +363,14 @@ async def delete_entry(entry_id: str, _user: dict = Depends(get_current_user)):
 
 
 @api.get("/stats")
-async def stats():
-    pipeline = [{"$group": {"_id": "$category", "count": {"$sum": 1}}}]
+async def stats(user: Optional[dict] = Depends(get_optional_user)):
+    match: dict = {}
+    if not user or user.get("role") != "admin":
+        match["is_private"] = {"$ne": True}
+    pipeline = []
+    if match:
+        pipeline.append({"$match": match})
+    pipeline.append({"$group": {"_id": "$category", "count": {"$sum": 1}}})
     counts = {c: 0 for c in CATEGORIES}
     async for row in db.entries.aggregate(pipeline):
         if row["_id"] in counts:
