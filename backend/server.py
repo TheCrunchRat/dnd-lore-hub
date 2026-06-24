@@ -1136,8 +1136,39 @@ async def seed_magic_trees():
     count = await db.magic_trees.count_documents({})
     # Backfill any pre-existing trees without a category
     await db.magic_trees.update_many({"tree_category": {"$exists": False}}, {"$set": {"tree_category": "origin"}})
+
+    # Expanded versions — auto-upgrade if the user hasn't customized
+    EXPANDED = {
+        "Wickfire": _wickfire_nodes(),
+        "Mossblood": _mossblood_nodes(),
+        "The Sundered Lantern": _sundered_lantern_nodes(),
+    }
+    OLD_COUNTS = {"Wickfire": 7, "Mossblood": 5, "The Sundered Lantern": 5}
+    for name, new_nodes in EXPANDED.items():
+        existing = await db.magic_trees.find_one({"name": name})
+        if existing and len(existing.get("nodes", [])) == OLD_COUNTS.get(name):
+            await db.magic_trees.update_one(
+                {"id": existing["id"]},
+                {"$set": {"nodes": new_nodes, "updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+            logger.info(f"Upgraded {name} to {len(new_nodes)} nodes")
+
+    # Insert the starter Class tree if missing
+    if not await db.magic_trees.find_one({"slug": "wickwarden"}):
+        now = datetime.now(timezone.utc).isoformat()
+        doc = {
+            "id": str(uuid.uuid4()), "slug": "wickwarden", "name": "Wickwarden",
+            "subtitle": "Class skill path — Defender of the Flame",
+            "summary": "The class skill tree for those who walk the road with a lantern and a vow.",
+            "content": "Wickwardens are the militant arm of the Order of Wicks — pilgrims and protectors who shield the flame against the dark.",
+            "accent_color": "#F97316", "image_url": "", "tree_category": "class",
+            "nodes": _wickwarden_nodes(),
+            "created_at": now, "updated_at": now,
+        }
+        await db.magic_trees.insert_one(doc)
+        logger.info("Seeded Wickwarden class tree")
+
     if count > 0:
-        # Insert the foundation constellation if it doesn't already exist
         if not await db.magic_trees.find_one({"slug": "the-sundered-lantern"}):
             now = datetime.now(timezone.utc).isoformat()
             const = next((t for t in SEED_MAGIC_TREES if t["name"] == "The Sundered Lantern"), None)
@@ -1153,6 +1184,113 @@ async def seed_magic_trees():
         doc = {**t, "id": tid, "slug": slug, "created_at": now, "updated_at": now}
         await db.magic_trees.insert_one(doc)
     logger.info("Seeded starter magic trees")
+
+
+def _node(nid, name, desc, icon, x, y, req=None):
+    return {"id": nid, "name": name, "description": desc, "icon": icon, "x": x, "y": y, "requires": req or []}
+
+
+def _wickfire_nodes():
+    return [
+        _node("w1", "Tend the Wick", "Light or extinguish any small flame in sight. The first cantrip.", "Flame", 0.50, 0.06),
+        # Tier 1
+        _node("w2a", "Lantern Eye", "See clearly in lantern-light up to 60 ft, even through fog or smoke.", "Eye", 0.22, 0.20, ["w1"]),
+        _node("w2b", "Steady Flame", "Your tended flames cannot be extinguished by wind or rain for one hour.", "Shield", 0.50, 0.20, ["w1"]),
+        _node("w2c", "Spark of Speech", "Cause any single candle, lantern or hearth-fire to gutter in time with your words.", "Wind", 0.78, 0.20, ["w1"]),
+        # Tier 2
+        _node("w3a", "Wayshrine Sense", "You always know the direction of the nearest lit wayshrine.", "Compass", 0.10, 0.36, ["w2a"]),
+        _node("w3b", "Ember Bolt", "Hurl a mote of wickfire (1d8 fire). Lights torches on hit.", "Zap", 0.32, 0.36, ["w2a", "w2b"]),
+        _node("w3c", "Hearth-Mend", "Tend a wound by lantern-light — restore 1d6 + tier HP, once per rest.", "Heart", 0.55, 0.36, ["w2b"]),
+        _node("w3d", "Brass Ward", "Trace a circle of wickfire that undead and bog-stalkers will not cross.", "Sparkles", 0.78, 0.36, ["w2b", "w2c"]),
+        _node("w3e", "Whispering Flame", "Carry a message from one lit lantern to another within a day's walk.", "BookOpen", 0.93, 0.36, ["w2c"]),
+        # Tier 3
+        _node("w4a", "Lamplighter's Path", "Once per dusk, walk between two lit lanterns up to 100 ft apart in a single step.", "Footprints", 0.18, 0.52, ["w3a", "w3b"]),
+        _node("w4b", "Pyre Step", "Step into one flame, step out from another within 30 ft.", "Footprints", 0.42, 0.52, ["w3b"]),
+        _node("w4c", "Mirror Wick", "Split one flame into two — they share a single source of fuel.", "Sun", 0.62, 0.52, ["w3c", "w3d"]),
+        _node("w4d", "Funeral Bright", "Burn the unclean and the lying without consuming the honest.", "Skull", 0.82, 0.52, ["w3d", "w3e"]),
+        # Tier 4
+        _node("w5a", "Ash Walk", "For one scene, you leave no footprints and cast no shadow.", "Wind", 0.30, 0.68, ["w4a", "w4b"]),
+        _node("w5b", "Cleansing Pyre", "Summon a pillar of pale fire that burns only what is unclean (8d6 radiant).", "Sun", 0.55, 0.68, ["w4b", "w4c"]),
+        _node("w5c", "Beacon Call", "Light a flare visible for a hundred miles. Anyone who sees it learns where you are.", "Star", 0.78, 0.68, ["w4c", "w4d"]),
+        # Tier 5 (capstones)
+        _node("w6a", "Long Burning", "Your final breath does not put out your lantern. Resist death once.", "Crown", 0.35, 0.86, ["w5a", "w5b"]),
+        _node("w6b", "Cathedral of Flame", "Erect a 30-ft sphere of light no spirit nor sorcery may enter. Lasts until you sleep.", "Sparkles", 0.65, 0.86, ["w5b", "w5c"]),
+    ]
+
+
+def _mossblood_nodes():
+    return [
+        _node("m1", "Greenwhisper", "Speak with any plant for one minute. Most have little to say.", "Leaf", 0.50, 0.06),
+        # Tier 1
+        _node("m2a", "Vine-Step", "Vines and roots part for you. Move silently through undergrowth.", "Footprints", 0.22, 0.20, ["m1"]),
+        _node("m2b", "Spore-Tongue", "Taste a mushroom and know if it is safe, lying, or hungry.", "Eye", 0.50, 0.20, ["m1"]),
+        _node("m2c", "Moss-Knit", "A poultice of shrine-moss restores 2d4 + tier HP. Once per scene.", "Heart", 0.78, 0.20, ["m1"]),
+        # Tier 2
+        _node("m3a", "Root-Knot", "Bind a creature in place with roots (STR save DC 8+prof+wis).", "Leaf", 0.12, 0.36, ["m2a"]),
+        _node("m3b", "Bark-Skin", "Your skin hardens — +2 AC for one minute, no metal armor.", "Shield", 0.35, 0.36, ["m2a", "m2b"]),
+        _node("m3c", "Witch-Light", "Summon a will-o'-wisp that follows your lantern for one night.", "Sparkles", 0.58, 0.36, ["m2b", "m2c"]),
+        _node("m3d", "Long Memory", "Touch a tree older than fifty years and see one event it witnessed.", "BookOpen", 0.82, 0.36, ["m2c"]),
+        # Tier 3
+        _node("m4a", "Forest-March", "The forest carries you at twice your speed for one day.", "Footprints", 0.22, 0.52, ["m3a", "m3b"]),
+        _node("m4b", "Hollow-Heart Pact", "Trade a memory to a tree in exchange for one of its oldest gifts.", "Heart", 0.50, 0.52, ["m3b", "m3c"]),
+        _node("m4c", "Wyrd-Bind", "Mark a creature — the forest will know it from now on, and refuse it.", "Star", 0.78, 0.52, ["m3c", "m3d"]),
+        # Tier 4
+        _node("m5a", "Verdant Call", "Summon a host of crows, foxes, or mushroom-spites for one scene.", "Bird", 0.30, 0.70, ["m4a", "m4b"]),
+        _node("m5b", "Mushroom Sight", "See through the eyes of any fungus you have touched, anywhere it grows.", "Eye", 0.55, 0.70, ["m4b"]),
+        _node("m5c", "The Long Sleep", "Bury yourself in moss — heal fully, but sleep for a week and a day.", "Moon", 0.78, 0.70, ["m4b", "m4c"]),
+        # Tier 5
+        _node("m6a", "Forest-Born", "You no longer age in any forest older than yourself.", "Trees", 0.40, 0.88, ["m5a", "m5b"]),
+        _node("m6b", "Crown of Thorns", "Take root in place — gain Resistance to all damage but cannot move. Lasts a day.", "Crown", 0.65, 0.88, ["m5b", "m5c"]),
+    ]
+
+
+def _sundered_lantern_nodes():
+    return [
+        _node("s1", "The Wick", "The first star. A small, steady light that cannot be extinguished by living hand.", "Flame", 0.50, 0.06),
+        # Tier 1 — the three nearer stars
+        _node("s2", "The Smoke", "Obscure your passage from one who watches you.", "Wind", 0.20, 0.20, ["s1"]),
+        _node("s3", "The Shadow", "Cast a shadow that is not your own — it walks where you cannot.", "Moon", 0.50, 0.20, ["s1"]),
+        _node("s4", "The Flicker", "Be in two places for the length of one heartbeat.", "Star", 0.80, 0.20, ["s1"]),
+        # Tier 2 — the four watching stars
+        _node("s5", "The Mirror", "What you see in still water tells you a truth about the seer.", "Eye", 0.10, 0.36, ["s2"]),
+        _node("s6", "The Hollow", "Empty yourself of one feeling for one scene — fear, love, grief.", "Skull", 0.34, 0.36, ["s2", "s3"]),
+        _node("s7", "The Veil", "Step behind the world — for one minute, nothing in it can touch you.", "Sparkles", 0.62, 0.36, ["s3", "s4"]),
+        _node("s8", "The Glass", "See a moment that has already happened, once, never twice.", "BookOpen", 0.88, 0.36, ["s4"]),
+        # Tier 3 — the long stars
+        _node("s9", "The Threshold", "Anyone who crosses a doorway you mark will pause once, helpless.", "Compass", 0.22, 0.54, ["s5", "s6"]),
+        _node("s10", "The Watcher", "A star far above sees what you choose to look at, and remembers.", "Eye", 0.48, 0.54, ["s6", "s7"]),
+        _node("s11", "The Procession", "Walk in a line with the dead behind you — they will not be seen unless you turn.", "Footprints", 0.76, 0.54, ["s7", "s8"]),
+        # Tier 4 — the burning stars
+        _node("s12", "The Eclipse", "Become unseen for as long as the lantern at the heart of you holds.", "Moon", 0.30, 0.72, ["s9", "s10"]),
+        _node("s13", "The Gate", "Open a door that was never there. Close it from the other side.", "Sparkles", 0.55, 0.72, ["s10"]),
+        _node("s14", "The Procession's End", "The dead behind you may take one action — once, never twice.", "Bone", 0.78, 0.72, ["s10", "s11"]),
+        # Tier 5 — the final stars
+        _node("s15", "The Sundered Crown", "The constellation accepts you. The price is a name, surrendered. From now on, no power may compel you against your will.", "Crown", 0.50, 0.90, ["s12", "s13", "s14"]),
+    ]
+
+
+def _wickwarden_nodes():
+    return [
+        _node("ww1", "Lantern Bond", "Bond a lantern — it cannot be extinguished by any hand but yours.", "Flame", 0.50, 0.06),
+        _node("ww2a", "Brass Discipline", "Add +prof to one save you choose at the start of each day.", "Shield", 0.22, 0.20, ["ww1"]),
+        _node("ww2b", "Ember Reflex", "+1 initiative. Once per scene, ignore the first 1d6 fire damage.", "Zap", 0.50, 0.20, ["ww1"]),
+        _node("ww2c", "Pilgrim's Stride", "Move at full speed in difficult terrain on roads.", "Footprints", 0.78, 0.20, ["ww1"]),
+        # Tier 2
+        _node("ww3a", "Wayguard", "An ally within 5 ft of your lantern shares your saves against fear.", "Shield", 0.15, 0.36, ["ww2a"]),
+        _node("ww3b", "Lanternstrike", "Once per scene, your weapon attack also lights a torch on hit.", "Sword", 0.40, 0.36, ["ww2a", "ww2b"]),
+        _node("ww3c", "Vigil Stance", "When you do not move, attackers have disadvantage.", "Eye", 0.62, 0.36, ["ww2b", "ww2c"]),
+        _node("ww3d", "Bonded Flame", "Cast Light on your lantern at will. It cannot be Dispelled.", "Sparkles", 0.85, 0.36, ["ww2c"]),
+        # Tier 3
+        _node("ww4a", "Stand Fast", "When reduced to 0 HP, regain 1 HP. Once per day.", "Heart", 0.22, 0.54, ["ww3a", "ww3b"]),
+        _node("ww4b", "Stoke", "Bonus action — grant an ally within 30 ft +1d6 fire damage on their next hit.", "Flame", 0.50, 0.54, ["ww3b", "ww3c"]),
+        _node("ww4c", "Burning Resolve", "You cannot be put to sleep by magical or mundane means.", "Crown", 0.78, 0.54, ["ww3c", "ww3d"]),
+        # Tier 4
+        _node("ww5a", "Long Watch", "Need only 2 hours of sleep per night.", "Moon", 0.30, 0.72, ["ww4a", "ww4b"]),
+        _node("ww5b", "Cleansing Vow", "Once per day, cure one disease, curse, or possession by burning your lantern's wick low.", "Sun", 0.55, 0.72, ["ww4b", "ww4c"]),
+        _node("ww5c", "Last Light", "If your bonded lantern is broken, you may relight it once with your own blood.", "Heart", 0.78, 0.72, ["ww4c"]),
+        # Capstone
+        _node("ww6", "Last Lantern", "When you die, your bonded lantern burns for a year and a day in your honor — anyone who tends it gains one tier of your training.", "Crown", 0.50, 0.90, ["ww5a", "ww5b", "ww5c"]),
+    ]
 
 
 # ---------------- App wiring ----------------
