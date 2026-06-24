@@ -1,0 +1,38 @@
+{
+  "summary": "Verified the new /guide (small wiki) feature end-to-end and all batches still pass. Created /app/backend/tests/test_guides.py with 11 pytest cases — all pass (anon list/get, anon-blocked POST/PUT/DELETE → 401, DM full CRUD lifecycle with re-slug + pin ordering, regression checks for sessions comments, maps, image uploads and DM-only sealed entries). Playwright run confirmed: /guide redirects to /guide/welcome, anon sees sidebar + article but no New/Edit/Delete/Pin controls, top nav has 'Guide' between Sessions and Bestiary, admin qlink-guide tile is present (href=/guide). DM flow: empty title save shows 'Title is required' toast and drawer stays open; creating 'TEST_REVERT_ME_GuideTest' with '**hello** [[Mirewatch]] world\\n\\nAnd `[[Literal]]` should stay literal.' produced (a) bold rendering, (b) codex-link <a href='/locations/mirewatch'> for [[Mirewatch]], (c) literal '[[Literal]]' inside <code> with NO anchor descendant — confirming the masking fix. URL re-slugged to /guide/test-revert-me-guidetest with matching sidebar nav. Drop-cap on .prose-tome > p:first-of-type::first-letter renders 56px rgb(251,191,36) float:left (gold), and is correctly scoped to direct child paragraphs only (nested li/blockquote paragraphs unaffected). Pin toggle flips state and shows 'Pinned' badge + sidebar pin icon. Edit reopens drawer prefilled; renaming to 'TEST_REVERT_ME_GuideRenamed' re-slugs URL. Two-click delete shows 'Confirm' label on first click then deletes and navigates back to /guide/welcome. Image upload via [data-testid='field-guide-content-img-pick'] uploaded a PNG and inserted ![image](https://.../api/uploads/<id>) at the cursor. Test guides were cleaned up — only the seed 'Welcome to the Lantern Realm' remains.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/guides", "issue": "Empty-title body is accepted by backend (200) — frontend enforces 'Title is required'. Consider adding a server-side min-length=1 on GuideIn.title for defense-in-depth (not blocking)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "GuideEditor sticky header", "issue": "The sonner toast container (top-right) overlaps the Save button area at 1920x1080 — initial automated clicks were eaten by the toast. A real user moving slower won't see it, but if a user spams Save after a 'Title is required' toast, the next click can be swallowed. Consider moving the toaster to bottom-right OR adding margin-right to the sticky header content. Not a regression — pre-existing toast positioning.", "selector": "[data-testid='guide-editor-save']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_guides.py",
+    "/app/test_reports/pytest/iter6_guides.xml"
+  ],
+  "action_items": [
+    "(Optional, low priority) Reposition or right-pad the sonner Toaster so it doesn't visually overlap the GuideEditor Save button.",
+    "(Optional) Add server-side validation that POST/PUT /api/guides rejects empty titles (currently relies on frontend only)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is still ~1900 lines after the guides addition — overdue for a module split (auth, entries, magic, sessions, pcs, rules, guides, seeding). Not blocking this batch.",
+    "Pre-existing failure in /app/backend/tests/test_map_feature.py::test_mirewatch_exposes_seeded_coords (Mirewatch map_x is 46.3 vs expected 38.5) — Mirewatch's coords were moved by an earlier test run; the test should re-seed/reset before asserting OR the assertion should be relaxed. Unrelated to the Guides batch."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_guides.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11 new guide tests + all batch-related regressions); 1 unrelated pre-existing failure in test_map_feature.py (Mirewatch coord drift)", "frontend": "100% (all flows from the request verified)"},
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created and deleted TEST_REVERT_ME_GuideTest -> TEST_REVERT_ME_GuideRenamed during testing; both removed. Verified post-run that /api/guides returns exactly 1 doc — the seed 'Welcome to the Lantern Realm'. The Sundering lore entry sealed/unsealed during regression test_regression_private_entry_sealed — confirmed reverted to is_private=false.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Guides feature is solid. Backend regression suite for it lives at /app/backend/tests/test_guides.py and is self-cleaning (autouse cleanup fixture deletes any TEST_REVERT_ME_* guides between tests). Key Playwright selectors: guide-page, guide-sidebar, guide-article, guide-nav-<slug>, new-guide-btn, edit-guide-<slug>, delete-guide-<slug>, pin-guide-<slug>, guide-editor, guide-editor-save, guide-editor-close, field-guide-title, field-guide-subtitle, field-guide-content (wrapper) + field-guide-content-textarea + field-guide-content-img-pick, field-guide-sort, field-guide-pinned, qlink-guide. Markdown masking fix in /app/frontend/src/lib/markdown.js correctly handles inline + fenced code spans before [[wiki]] expansion. Drop-cap selector is now correctly scoped (.prose-tome > p:first-of-type::first-letter). The unrelated test_map_feature.py Mirewatch coord drift should be flagged to main agent to either re-seed or relax the assertion.",
+  "rca of the issue": "N/A — all targeted behaviour works as designed. Only observation worth noting: the sonner Toaster z-index/position overlaps the GuideEditor sticky header save button area at desktop widths, which can swallow rapid second-clicks. Mitigation suggested under frontend_issues."
+}

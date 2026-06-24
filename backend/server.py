@@ -411,6 +411,91 @@ class MapPositionIn(BaseModel):
     map_id: Optional[str] = None
 
 
+# ---------------- Guide Pages (small wiki) ----------------
+class GuideIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    title: str = Field(min_length=1, max_length=120)
+    subtitle: Optional[str] = ""
+    content: Optional[str] = ""
+    sort_order: int = 0
+    is_pinned: bool = False
+
+
+def guide_to_out(doc: dict) -> dict:
+    return {
+        "id": doc["id"],
+        "slug": doc["slug"],
+        "title": doc["title"],
+        "subtitle": doc.get("subtitle", ""),
+        "content": doc.get("content", ""),
+        "sort_order": doc.get("sort_order", 0),
+        "is_pinned": doc.get("is_pinned", False),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+async def _make_unique_guide_slug(title: str) -> str:
+    base = slugify(title) or f"guide-{uuid.uuid4().hex[:6]}"
+    candidate = base
+    i = 2
+    while await db.guides.find_one({"slug": candidate}):
+        candidate = f"{base}-{i}"
+        i += 1
+    return candidate
+
+
+@api.get("/guides")
+async def list_guides():
+    cursor = db.guides.find({}, {"_id": 0}).sort([
+        ("is_pinned", -1), ("sort_order", 1), ("created_at", 1)
+    ])
+    items = await cursor.to_list(length=200)
+    return [guide_to_out(d) for d in items]
+
+
+@api.get("/guides/{guide_id}")
+async def get_guide(guide_id: str):
+    doc = await db.guides.find_one({"$or": [{"id": guide_id}, {"slug": guide_id}]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Guide not found")
+    return guide_to_out(doc)
+
+
+@api.post("/guides")
+async def create_guide(body: GuideIn, _user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    gid = str(uuid.uuid4())
+    slug = await _make_unique_guide_slug(body.title)
+    doc = body.model_dump()
+    doc.update({"id": gid, "slug": slug, "created_at": now, "updated_at": now})
+    await db.guides.insert_one(doc)
+    doc.pop("_id", None)
+    return guide_to_out(doc)
+
+
+@api.put("/guides/{guide_id}")
+async def update_guide(guide_id: str, body: GuideIn, _user: dict = Depends(get_current_user)):
+    existing = await db.guides.find_one({"id": guide_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Guide not found")
+    update = body.model_dump()
+    if update["title"] != existing.get("title"):
+        update["slug"] = await _make_unique_guide_slug(update["title"])
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.guides.update_one({"id": guide_id}, {"$set": update})
+    updated = await db.guides.find_one({"id": guide_id}, {"_id": 0})
+    return guide_to_out(updated)
+
+
+@api.delete("/guides/{guide_id}")
+async def delete_guide(guide_id: str, _user: dict = Depends(get_current_user)):
+    res = await db.guides.delete_one({"id": guide_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Guide not found")
+    return {"ok": True}
+
+
 # ---------------- Regional Maps ----------------
 class RegionalMapIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1210,6 +1295,40 @@ async def seed_rules():
     logger.info("Seeded D&D 5e rules library")
 
 
+async def seed_guides():
+    if await db.guides.count_documents({}) > 0:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    starter = {
+        "id": str(uuid.uuid4()),
+        "slug": "welcome",
+        "title": "Welcome to the Lantern Realm",
+        "subtitle": "A short guide for new arrivals",
+        "content": (
+            "## What this site is\n\n"
+            "This is our campaign codex — a place to gather the lore, "
+            "characters, locations, and rules of our table. Pages live in the **sidebar**; "
+            "click any one to read it.\n\n"
+            "## Writing your own guide\n\n"
+            "Click **New Guide** above (DM only) to start a new page. The editor accepts:\n\n"
+            "- bold and italic text\n"
+            "- headings, quotes, and bullet lists\n"
+            "- cross-links to the codex — type `[[Entry Name]]` and it becomes a clickable lantern\n\n"
+            "## Adding images\n\n"
+            "Use the **image button** in the editor toolbar (or drag-and-drop right into "
+            "the editor) to upload an image. It gets stored permanently and inserted into "
+            "the page as `![image](url)`.\n\n"
+            "> Tip: keep images under 10 MB. PNG, JPG, WEBP and GIF all work.\n"
+        ),
+        "sort_order": 0,
+        "is_pinned": True,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.guides.insert_one(starter)
+    logger.info("Seeded starter guide")
+
+
 async def seed_default_map():
     # If a map already exists, nothing to do.
     if await db.regional_maps.count_documents({}) > 0:
@@ -1750,6 +1869,8 @@ async def on_startup():
     await db.uploads.create_index("id", unique=True)
     await db.regional_maps.create_index("id", unique=True)
     await db.regional_maps.create_index("slug", unique=True)
+    await db.guides.create_index("id", unique=True)
+    await db.guides.create_index("slug", unique=True)
     for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
         await db[coll].create_index("id", unique=True)
     await seed_admins()
@@ -1757,6 +1878,7 @@ async def on_startup():
     await seed_magic_trees()
     await seed_rules()
     await seed_default_map()
+    await seed_guides()
     try:
         init_storage()
         logger.info("Emergent object storage initialised")

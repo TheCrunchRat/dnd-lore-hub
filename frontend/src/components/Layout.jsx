@@ -11,6 +11,7 @@ const navItems = [
   { to: "/factions", label: "Factions" },
   { to: "/lore", label: "Lore" },
   { to: "/sessions", label: "Sessions" },
+  { to: "/guide", label: "Guide" },
   { to: "/bestiary", label: "Bestiary" },
   { to: "/magic", label: "Magic" },
   { to: "/shop", label: "Shop" },

@@ -40,12 +40,8 @@ export function slugify(text) {
 
 /**
  * Replace [[target]] and [[target|label]] tokens with anchor tags BEFORE markdown
- * processing. `entries` is the full list of codex entries from /api/entries.
- *
- * Resolution:
- *  - target matches an entry.slug (case-insensitive)  →  link to /<basePath>/<slug>
- *  - target matches an entry.title (case-insensitive) →  link to that entry
- *  - no match  →  render as a broken-link span (themed "?" marker via CSS)
+ * processing — but ONLY outside of code spans / code blocks, so authors can show
+ * the literal syntax in docs without it being converted.
  */
 function expandCodexLinks(src, entries) {
   if (!src) return "";
@@ -55,10 +51,20 @@ function expandCodexLinks(src, entries) {
     if (e?.slug) bySlug.set(e.slug.toLowerCase(), e);
     if (e?.title) byTitle.set(e.title.toLowerCase(), e);
   }
-  return src.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, rawTarget, rawLabel) => {
+  // Mask out fenced code blocks (```...```) and inline code spans (`...`) so we
+  // don't expand wiki-tokens that the author intentionally quoted.
+  const placeholders = [];
+  const mask = (m) => {
+    const i = placeholders.push(m) - 1;
+    return `\u0000CODE${i}\u0000`;
+  };
+  let masked = src
+    .replace(/```[\s\S]*?```/g, mask)
+    .replace(/`[^`\n]+`/g, mask);
+
+  masked = masked.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, rawTarget, rawLabel) => {
     const target = rawTarget.trim();
     const label = (rawLabel ?? rawTarget).trim();
-    // Try by slug first (also try slugified form of the target text)
     const hit =
       bySlug.get(target.toLowerCase()) ||
       bySlug.get(slugify(target)) ||
@@ -66,11 +72,13 @@ function expandCodexLinks(src, entries) {
     if (hit) {
       const base = CODEX_PATHS[hit.category] || "/";
       const href = `${base}/${hit.slug}`;
-      // Encode label as text node; href can contain only safe chars
       return `<a class="codex-link" data-codex-slug="${hit.slug}" href="${href}">${escapeHtml(label)}</a>`;
     }
     return `<span class="codex-link-broken" title="No entry named &quot;${escapeHtml(target)}&quot;">${escapeHtml(label)}?</span>`;
   });
+
+  // Restore code spans / blocks exactly as the author wrote them.
+  return masked.replace(/\u0000CODE(\d+)\u0000/g, (_, i) => placeholders[Number(i)]);
 }
 
 function escapeHtml(s) {

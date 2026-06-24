@@ -112,7 +112,7 @@
     }
 
     .prose-tome p { @apply text-bone leading-relaxed mb-4; }
-    .prose-tome p:first-of-type::first-letter {
+    .prose-tome > p:first-of-type::first-letter {
         font-family: 'Cormorant Garamond', serif;
         font-size: 3.5rem;
         line-height: 0.9;
