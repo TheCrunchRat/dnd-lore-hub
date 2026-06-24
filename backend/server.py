@@ -1127,7 +1127,9 @@ class PlayerCharacterIn(BaseModel):
     saving_throws: Optional[List[str]] = None  # ability names
     languages: Optional[List[str]] = None
     spells_known: Optional[List[str]] = None   # spell names or ids
+    spells_prepared: Optional[List[str]] = None  # subset of spells_known that are prepared today
     spell_slots: Optional[dict] = None          # {1: {max, used}, ...}
+    spell_slots_used: Optional[dict] = None     # {"1": 2, ...} spent per level (≤ max)
     equipment: Optional[List[str]] = None
     features: Optional[List[str]] = None
     # Custom configurable resource (e.g. Mana / Wickfire / Sorcery Points)
@@ -1178,7 +1180,9 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "saving_throws": body.saving_throws or [],
         "languages": body.languages or [],
         "spells_known": body.spells_known or [],
+        "spells_prepared": body.spells_prepared or [],
         "spell_slots": body.spell_slots or {},
+        "spell_slots_used": body.spell_slots_used or {},
         "equipment": body.equipment or [],
         "features": body.features or [],
         "resource_name": body.resource_name or "",
@@ -1253,7 +1257,9 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "saving_throws": body.saving_throws,
         "languages": body.languages,
         "spells_known": body.spells_known,
+        "spells_prepared": body.spells_prepared,
         "spell_slots": body.spell_slots,
+        "spell_slots_used": body.spell_slots_used,
         "equipment": body.equipment,
         "features": body.features,
     }.items():
