@@ -53,11 +53,17 @@
   - **Click popup modal** — `LockedNodeModal` with SEALED ABILITY overline, lock-badged icon, "Requires Level N" banner, description, per-rank effects, flavour text
 - Replaced last remaining `window.confirm` (school deletion) with inline two-click confirm pattern
 - Restructured Magic page JSX so modals escape the `z-10` content stacking context and properly overlay the global navbar (z-40)
+- **Refactor**: split `MagicTree.jsx` (1086 → 387 lines) into:
+  - `components/magic-tree/constants.js` — CANVAS dims, SIZE_*, ICON_OPTIONS, `uid`, `curvedPath`, `hexToRgb`, `createsCycle`
+  - `components/magic-tree/TreeCanvas.jsx` — SVG canvas + nodes + hover tooltip (presentational, no state)
+  - `components/magic-tree/NodeEditor.jsx` — side-panel node editor/viewer
+  - `components/magic-tree/SchoolSettings.jsx` — slide-over settings + two-click delete confirm
+  - `components/magic-tree/LockedNodeModal.jsx` — level-locked popup
+  - All previously-passing `data-testid`s retained 1:1; iteration_4 testing 100% pass.
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs
 - **P1** Public sharable share-link toggle per entry (DM-only spoiler tags)
-- **P2** Refactor: split MagicTree.jsx (1086 lines) into `components/magic-tree/{LockedNodeModal, SchoolSettings, NodeEditor, TreeCanvas}`
 - **P2** Refactor: break `server.py` into route modules under `/app/backend/routes`
 - **P2** Markdown rich-text editor (currently plain-text paragraph split)
 - **P2** Cross-linking between entries (`[[mention]]` syntax)
