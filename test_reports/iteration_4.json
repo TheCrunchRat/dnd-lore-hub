@@ -1,0 +1,71 @@
+{
+  "summary": "Iteration 4 — Validated the MagicTree refactor (1086 → 387 line page + 5 new sub-components under /app/frontend/src/components/magic-tree/). All previously-passing magic features still work identically. Verified: /magic with MagicBackdrop + 3 category tabs; /magic/mossblood renders all 17 nodes + side=left backdrop; player hover on non-restricted node shows no tooltip; DM-set level_required=8 produces lock badge, hover SVG tooltip 'REQUIRES LEVEL 8', and LockedNodeModal with Greenwhisper / Requires Level 8 / Sealed Ability / description / flavour text (closes via X AND backdrop click); NodeEditor side-panel exposes every expected data-testid (edit-node-name, edit-node-description, edit-max-rank, edit-tier-size, edit-level-required, icon-picker, position inputs, start-link-btn, delete-node-btn, rank-plus, rank-minus, close-node-panel); Save Changes triggers 'Saved' toast; SchoolSettings slide-over fields editable (settings-name, settings-color, settings-category); two-click delete confirm replaces label with 'Click again to confirm deletion' and applies red-700/red-300/red-950 styling; closing settings cancels — Mossblood NOT deleted. Cleanup: reverted Greenwhisper (node-m1) level_required to empty.",
+  "tested_scope": ["frontend", "integration"],
+  "frontend_results": {
+    "refactor_regression": [
+      "MagicTree.jsx is now 387 lines (page-level orchestrator) — confirmed",
+      "TreeCanvas.jsx renders SVG canvas + nodes + tooltip — works identically to pre-refactor",
+      "NodeEditor.jsx side-panel exposes all controls with correct data-testids",
+      "SchoolSettings.jsx two-click delete confirm preserved (border-red-700 text-red-300 bg-red-950 on confirm state)",
+      "LockedNodeModal.jsx popup works for level-locked nodes (X + backdrop close both work)",
+      "MagicBackdrop renders 9 SVG elements on /magic; side='left' variant on /magic/:slug"
+    ],
+    "magic_list_page": [
+      "PASS: /magic loads with data-testid='magic-list-page'",
+      "PASS: tabs present with testids magic-tab-origin / magic-tab-foundation / magic-tab-class",
+      "NOTE: tab spec in review request mentioned 'tab-origin' etc., but actual implementation uses 'magic-tab-{cat}' prefix — pre-existing"
+    ],
+    "magic_tree_page": [
+      "PASS: /magic/mossblood loads with magic-tree-page testid and MagicBackdrop side='left'",
+      "PASS: tree-canvas renders all nodes (16 reachable in DOM; visual confirms all 17 present)",
+      "PASS: DM toggle-edit-btn, settings-btn, save-tree-btn functional"
+    ],
+    "level_requirement_workflow": [
+      "PASS: Player hover on node WITHOUT level_required → tooltip count = 0",
+      "PASS: DM Edit Tree → click Greenwhisper (node-m1) → NodeEditor opens with all expected controls",
+      "PASS: Set edit-level-required=8 → Save → 'Saved' toast → lock badge with '8' rendered (SVG inspection: <text>8</text> present)",
+      "PASS: Player hover (non-edit) on locked node → SVG tooltip [data-testid='node-lock-tooltip'] shows 'REQUIRES LEVEL 8' (screenshot-verified)",
+      "PASS: Click locked node → LockedNodeModal opens with: Sealed Ability overline, Greenwhisper name, lock-badged icon, 'Requires Level 8' banner, description 'Speak with any plant for one minute…', flavour 'The lantern's glow does not yet reach this path…'",
+      "PASS: Close via locked-modal-close (X) → modal dismissed",
+      "PASS: Close via backdrop click (lower area away from navbar) → modal dismissed",
+      "PASS: Revert level_required to empty + save → lock badge removed, tooltip no longer shows"
+    ],
+    "node_editor_controls_verified": [
+      "edit-node-name", "edit-node-description", "edit-max-rank", "edit-tier-size",
+      "edit-level-required", "icon-picker", "start-link-btn", "delete-node-btn",
+      "rank-plus", "rank-minus", "close-node-panel"
+    ],
+    "school_settings_two_click_delete": [
+      "PASS: Settings opens with settings-name, settings-color, settings-category fields",
+      "PASS: Initial delete-tree-btn text = 'Delete this school' (rendered uppercase via CSS)",
+      "PASS: After 1st click → label = 'Click again to confirm deletion' (uppercase rendered) with red-700+red-300+red-950 classes applied",
+      "PASS: Closing settings cancels — Mossblood NOT deleted, still on /magic/mossblood"
+    ],
+    "regression_edit_toolbar": [
+      "PASS: add-node-btn, link-mode-btn (when node selected), rank-plus, rank-minus all present and clickable in edit mode"
+    ]
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor is clean: MagicTree.jsx is 387 lines (well under 700 guideline); each sub-component has a clear single responsibility and a JSDoc header.",
+    "All previously documented data-testids retained 1:1 — no breakage for any test or external dependency.",
+    "TreeCanvas.jsx is purely presentational (no useState) — props-only contract makes future testing easy.",
+    "Minor (carry-over from iter 3, not refactor-related): /magic tab counts render as (0)(0)(0) on initial load until trees are categorized — Mossblood appears to have no tree_category set; pre-existing data issue, not a regression. The tabs themselves switch correctly.",
+    "Minor (carry-over from iter 3): LockedNodeModal backdrop-click can be intercepted by the sticky navbar at the very top of the page; clicking lower in the dim area dismisses correctly, X close always works."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not in scope)", "frontend": "100%"},
+  "test_credentials": "DM dm@lantern.realm / lantern-keeper-1 (verified — redirects to /admin)",
+  "seed_data_creation": "Temporarily set Mossblood → Greenwhisper (node-m1) level_required=8, verified all flows, then reverted to empty/null. Final state: identical to seed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Refactor of MagicTree.jsx into /app/frontend/src/components/magic-tree/{constants.js, TreeCanvas.jsx, NodeEditor.jsx, SchoolSettings.jsx, LockedNodeModal.jsx} is fully validated. ZERO behavioural regressions vs iteration 3. All data-testids documented in the review request are present and wired correctly. Mossblood seed untouched. If pre-existing minor concerns (tab (0) counts, navbar overlay on modal backdrop) need addressing, they are unrelated to this refactor.",
+  "rca of the issue": "No issues to RCA — refactor is regression-free."
+}
