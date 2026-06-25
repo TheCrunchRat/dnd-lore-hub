@@ -18,6 +18,7 @@ export default function TreeCanvas({
   editMode,
   selectedNodeId,
   hoveredNodeId,
+  highlightedNodeId,
   linkingFromId,
   draggingId,
   onPointerMove,
@@ -118,6 +119,7 @@ export default function TreeCanvas({
           const cy = n.y * CANVAS_H;
           const isSelected = selectedNodeId === n.id;
           const isHovered = hoveredNodeId === n.id;
+          const isHighlighted = highlightedNodeId === n.id;
           const isLinkTarget = linkingFromId && linkingFromId !== n.id;
           const Icon = Icons[n.icon] || Icons.Sparkles;
           const size = n.tier_size || "normal";
@@ -150,6 +152,16 @@ export default function TreeCanvas({
                 fill="url(#nodeGlow)"
                 opacity={isHovered || isSelected ? 1 : 0.7}
               />
+              {isHighlighted && (
+                <circle
+                  r={r + 12}
+                  fill="none"
+                  stroke={nodeColor}
+                  strokeWidth={2}
+                  data-testid={`node-pulse-${n.id}`}
+                  style={{ animation: "tree-node-pulse 1.2s ease-out infinite", transformOrigin: "center" }}
+                />
+              )}
               <circle
                 r={r}
                 fill="#0B0E0C"

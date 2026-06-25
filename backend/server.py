@@ -760,6 +760,12 @@ async def clear_dice_rolls(_user: dict = Depends(get_current_user)):
 
 
 # ---------------- Magic Skill Trees ----------------
+class NodeModifier(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    stat: Literal["str", "dex", "con", "int", "wis", "cha", "hp", "ac", "speed", "init"]
+    value: int
+
+
 class MagicNode(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -789,8 +795,7 @@ class MagicNode(BaseModel):
     duration: Optional[str] = ""
     spell_classes: Optional[List[str]] = Field(default_factory=list)
     # ---- Stat modifiers granted while this node is unlocked & level-gate met ----
-    # Each modifier: {"stat": "str"|"dex"|"con"|"int"|"wis"|"cha"|"hp"|"ac"|"speed"|"init", "value": int}
-    modifiers: Optional[List[dict]] = Field(default_factory=list)
+    modifiers: Optional[List[NodeModifier]] = Field(default_factory=list)
 
 
 class MagicTreeIn(BaseModel):

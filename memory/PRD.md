@@ -118,11 +118,16 @@
   - `lib/statModifiers.js` computes per-PC modifier totals from origin/foundation unlocks + class-tree (auto), level-gated by `pc.level >= node.level_required`. `CharacterSheet` applies the bonuses to all six ability scores plus HP/AC/Speed/Init, with a small +/- badge per stat and a hover tooltip listing each contributing node. Level-down hides modifiers automatically
   - `CharacterBuilder` spell picker now reads `/api/spells/library` so node-spells show in the builder too
   - Tests: `/app/backend/tests/test_spell_library_and_modifiers.py` (6 new) — 17/17 pytests pass
+- **Typed modifiers + cross-link polish**:
+  - Promoted `MagicNode.modifiers` from `List[dict]` to a typed `List[NodeModifier]` model with `stat: Literal["str","dex","con","int","wis","cha","hp","ac","speed","init"]` and `value: int`. Bad payloads now return a clear 422 at the API boundary instead of being silently dropped on the frontend
+  - `SpellManager` spell pills for origin spells now have a small **"View on tree"** external-link icon next to the flame. Clicking it navigates to `/magic/<tree.slug>?node=<nodeId>`
+  - `MagicTree` page reads `?node=` on load: auto-selects the node, opens the NodeEditor panel, plays a 2.4s gold pulse ring (`@keyframes tree-node-pulse` in `index.css`), then strips the query param so refreshes don't repeat. `TreeCanvas` accepts a new `highlightedNodeId` prop for the pulse
+  - Backend regression: 46/46 pytests still green
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
-- **P2** Refactor: break `server.py` (now ~2050 lines) into route modules under `/app/backend/routes`
-- **P3** Backend min/max enforcement for `level_required` (currently UI-only 1–20)
+- **P2** Refactor: break `server.py` (now ~2080 lines) into route modules under `/app/backend/routes`
+- **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`. DM: `dm@lantern.realm` / `lantern-keeper-1`.

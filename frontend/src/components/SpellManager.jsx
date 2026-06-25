@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Sparkles, BookOpen, RotateCcw, Flame } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Sparkles, BookOpen, RotateCcw, Flame, ExternalLink } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { toast } from "sonner";
 
@@ -61,7 +62,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
     const knownSet = new Set(knownSpells);
     const result = knownSpells.map((s) => ({ name: s, origin: null }));
     for (const o of originSpells) {
-      if (!knownSet.has(o.name)) result.push({ name: o.name, origin: o.tree });
+      if (!knownSet.has(o.name)) result.push({ name: o.name, origin: { tree: o.tree, node: o.node } });
     }
     return result;
   }, [knownSpells, originSpells]);
@@ -196,7 +197,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
             {allSpells.map(({ name, origin }) => {
               const isP = isPrepared(name);
               return (
-                <li key={name}>
+                <li key={name} className="inline-flex items-stretch">
                   <button
                     type="button"
                     disabled={!canEdit}
@@ -206,14 +207,28 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
                       isP
                         ? "border-[#FBBF24] text-lantern bg-[#FBBF24]/[0.08] shadow-[0_0_8px_rgba(251,191,36,0.2)]"
                         : "border-rust text-muted-bone line-through opacity-60"
-                    } ${canEdit ? "cursor-pointer hover:border-[#FBBF24]/60" : "cursor-default"}`}
+                    } ${canEdit ? "cursor-pointer hover:border-[#FBBF24]/60" : "cursor-default"} ${
+                      origin ? "rounded-l-sm border-r-0" : ""
+                    }`}
                     title={origin
-                      ? `Origin spell from ${origin.name}${isP ? " — prepared" : " — not prepared"}`
+                      ? `Origin spell from ${origin.tree.name}${isP ? " — prepared" : " — not prepared"}`
                       : isP ? "Prepared — tap to un-prepare" : "Known but not prepared — tap to prepare"}
                   >
-                    {origin && <Flame className="w-3 h-3" style={{ color: origin.accent_color || "#FBBF24" }} />}
+                    {origin && <Flame className="w-3 h-3" style={{ color: origin.tree.accent_color || "#FBBF24" }} />}
                     {name}
                   </button>
+                  {origin && (
+                    <Link
+                      to={`/magic/${origin.tree.slug}?node=${origin.node.id}`}
+                      data-testid={`view-on-tree-${name.replace(/\s+/g, "-").toLowerCase()}`}
+                      title={`View on ${origin.tree.name} tree`}
+                      className={`text-xs px-1.5 border border-l-0 inline-flex items-center transition-colors ${
+                        isP ? "border-[#FBBF24] text-lantern bg-[#FBBF24]/[0.08]" : "border-rust text-muted-bone"
+                      } hover:text-lantern hover:border-[#FBBF24]/60`}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </Link>
+                  )}
                 </li>
               );
             })}

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Plus, Save, Pencil, Link2, Unlink, Settings2 } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
@@ -15,10 +15,12 @@ export default function MagicTree() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tree, setTree] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [highlightedNodeId, setHighlightedNodeId] = useState(null);
   const [linkingFromId, setLinkingFromId] = useState(null);
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -37,6 +39,22 @@ export default function MagicTree() {
       .catch(() => setTree(null))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // ---------- Deep-link: ?node=<id> opens the panel and pulses the node ----------
+  useEffect(() => {
+    const nodeParam = searchParams.get("node");
+    if (!tree || !nodeParam) return;
+    const exists = (tree.nodes || []).some((n) => n.id === nodeParam);
+    if (!exists) return;
+    setSelectedNodeId(nodeParam);
+    setHighlightedNodeId(nodeParam);
+    // Strip the param after consuming it so refreshes don't keep pulsing
+    const next = new URLSearchParams(searchParams);
+    next.delete("node");
+    setSearchParams(next, { replace: true });
+    const t = setTimeout(() => setHighlightedNodeId(null), 2400);
+    return () => clearTimeout(t);
+  }, [tree, searchParams, setSearchParams]);
 
   const accent = tree?.accent_color || "#FBBF24";
   const accentRGB = useMemo(() => hexToRgb(accent), [accent]);
@@ -303,6 +321,7 @@ export default function MagicTree() {
             editMode={editMode}
             selectedNodeId={selectedNodeId}
             hoveredNodeId={hoveredNodeId}
+            highlightedNodeId={highlightedNodeId}
             linkingFromId={linkingFromId}
             draggingId={draggingId}
             onPointerMove={onPointerMove}
