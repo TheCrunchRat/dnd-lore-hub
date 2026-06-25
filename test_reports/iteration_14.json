@@ -1,0 +1,60 @@
+{
+  "summary": "Backend layouts API fully validated (5 new tests + 61 existing = 66/66 pytest). CRITICAL frontend wiring bug found: /admin/layouts route is NOT registered in App.js so the new AdminLayouts page is unreachable and silently redirects to home. Character sheet refactor verified: no LiveRollFeed on /characters/wawa, all expected blocks (portrait, equip, stats, abilities, saves_skills) render via layout-driven renderBlock. Dice page renderBlock + dice-feed testid present (verified via code & default layout API response).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "App.js routing",
+        "issue": "Route /admin/layouts is NOT registered. AdminLayouts.jsx exists (and is fully implemented with save/reset/tabs/slots/cfg controls), but App.js only registers /admin and /admin/rules. Visiting /admin/layouts hits the catch-all `<Navigate to=\"/\" replace />` and silently redirects to home — the DM cannot reach the layout editor from the UI at all.",
+        "selector": "/admin/layouts route",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Admin landing page (/admin)",
+        "issue": "No nav link to /admin/layouts. The Admin.jsx tile list only has rules-admin-link. DM has no in-app way to discover the new Page Layouts editor even once the route is added.",
+        "selector": "Admin.jsx tiles",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "AdminLayouts UI → save → player view",
+        "issue": "Cannot be tested end-to-end through the UI because the route is missing. Backend PUT /api/layouts is verified working via pytest (see test_put_layouts_admin_persists_and_reflects which moves live_feed Side→Main and back), so the data layer is fine — only the frontend route registration is missing.",
+        "affected_selectors": ["[data-testid='save-layout-btn']", "[data-testid='tab-dice_page']", "[data-testid='slot-select-live_feed']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_layouts.py",
+    "/app/test_reports/pytest/iter14_layouts.xml",
+    "/app/test_reports/pytest/iter14_all.xml"
+  ],
+  "action_items": [
+    "Add `<Route path=\"/admin/layouts\" element={<ProtectedRoute requireAdmin><AdminLayouts /></ProtectedRoute>} />` to /app/frontend/src/App.js (and import AdminLayouts from './pages/AdminLayouts'). Place it next to the existing /admin/rules entry, BEFORE the catch-all `<Route path=\"*\" element={<Navigate to=\"/\" replace />}/>`.",
+    "Add a tile/link entry to /app/frontend/src/pages/Admin.jsx tiles list pointing to /admin/layouts (e.g. `{ to: \"/admin/layouts\", label: \"Page Layouts\", icon: Layout, testid: \"layouts-admin-link\" }`).",
+    "After wiring, re-run the AdminLayouts UI flow: move live_feed Side→Main, Save, navigate to /dice, confirm dice-feed renders in main column; then restore."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/server.py:1438 — GET /api/layouts correctly merges DEFAULT_LAYOUTS into the persisted doc, so new keys (saves_skills, gear) appear even on legacy saved layouts. Good.",
+    "/app/backend/server.py:1447 — PUT /api/layouts admin-gate via role check works correctly (anon → 401 from Depends, admin only check → 403). Verified.",
+    "/app/frontend/src/lib/layouts.js:79 effectivePage reconciles missing keys by appending to `left`, and drops keys not in registry — correct for forward compatibility.",
+    "/app/frontend/src/components/CharacterSheet.jsx — LiveRollFeed import has been removed (verified via grep). renderBlock switch covers all 13 keys.",
+    "/app/frontend/src/pages/Dice.jsx:394 — live_feed block carries data-testid='dice-feed' as expected; respects blockConfig(layout,'dice_page','live_feed').limit.",
+    "/app/frontend/src/pages/AdminLayouts.jsx — fully implemented with all required testids (save-layout-btn, reset-layout-btn, tab-*, slot-*, block-row-*, up-/down-/slot-select-*, cfg-portrait/cfg-live_feed, cfg-portrait-size, cfg-live_feed-limit). Code is fine — JUST NOT ROUTED.",
+    "AdminLayouts.resetToDefault sends `{ [activePage]: { left:[], right:[], hidden:[], configs:{} } }` — relies on backend GET fallback to defaults when persisted lists are empty; verified working via the public defaults test."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_layouts.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (66/66 pytest passed; 5 new layouts tests + 61 existing)",
+    "frontend": "Partial — character sheet block rendering verified; AdminLayouts UI unreachable due to missing route; dice-feed visible only after Dice page name-prompt is satisfied (anon flow blocks block rendering, pre-existing behaviour)."
+  },
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1 (verified login 200).",
+  "seed_data_creation": "test_put_layouts_admin_persists_and_reflects briefly moves dice_page.live_feed Side→Main with feed limit 25, then restores from the pre-test snapshot. test_put_layouts_character_sheet_saves_new_keys briefly moves saves_skills+gear to hidden then restores. Both teardowns verified.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Once the main agent registers /admin/layouts in App.js, re-run a Playwright flow as DM: (1) goto /admin/layouts, (2) click [data-testid='tab-dice_page'], (3) select_option on [data-testid='slot-select-live_feed'] → 'left', (4) click [data-testid='save-layout-btn'], (5) goto /dice and assert [data-testid='dice-feed'] is now in the main column (single column on /dice — selector that worked: page.locator(\"[data-testid='dice-feed']\").count() == 1). Note: /dice asks anon users for a 'name at the table' before rendering any blocks; login as DM first OR submit the name form to see live_feed. block-gear on character sheet is correctly conditional on equipment/features/languages being non-empty (wawa has none, so it does not render — that's expected, not a bug).",
+  "rca of the issue": "AdminLayouts.jsx file was created and is fully functional (all data-testids, save/reset/move/config controls present), but /app/frontend/src/App.js was never updated to add the <Route path=\"/admin/layouts\"> entry. Because App.js has `<Route path=\"*\" element={<Navigate to=\"/\" replace />} />` as a catch-all, the URL silently redirects to home instead of throwing a 404 — making the issue invisible without a manual visit. Fix: import AdminLayouts and add the protected route entry alongside /admin/rules; also add a discoverability tile on Admin.jsx."
+}

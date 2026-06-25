@@ -28,21 +28,21 @@ DEFAULT_LAYOUTS = {
     "character_sheet": {
         "left": [
             "portrait", "equip", "resources", "rest", "modifiers",
-            "rollers", "stats", "abilities", "spells", "treesections", "content",
+            "rollers", "stats", "abilities", "saves_skills", "spells",
+            "treesections", "gear", "content",
         ],
         "right": [],
         "hidden": [],
         "configs": {
             "portrait": {"size": "medium"},
-            "live_feed": {"limit": 8},
         },
     },
     "dice_page": {
-        "left": ["active_pc", "display", "quick", "builder", "live_feed"],
-        "right": [],
+        "left": ["active_pc", "display", "quick", "builder"],
+        "right": ["live_feed"],
         "hidden": [],
         "configs": {
-            "live_feed": {"limit": 12},
+            "live_feed": {"limit": 50},
         },
     },
 }

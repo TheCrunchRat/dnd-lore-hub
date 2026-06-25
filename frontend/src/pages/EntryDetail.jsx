@@ -235,14 +235,18 @@ export default function EntryDetail() {
           </div>
         )}
 
-        {isPC && (
-          <EquipBanner entry={entry} user={user} onUpdated={(updated) => setEntry(updated)} />
-        )}
-
-        {isPC && <CharacterSheet entry={entry} canEdit={canEdit} onUpdated={(updated) => setEntry(updated)} />}
-
-        {entry.content && (
-          <MarkdownView source={entry.content} entries={allEntries} data-testid="entry-content" />
+        {isPC ? (
+          <CharacterSheet
+            entry={entry}
+            canEdit={canEdit}
+            onUpdated={(updated) => setEntry(updated)}
+            equipNode={<EquipBanner entry={entry} user={user} onUpdated={(updated) => setEntry(updated)} />}
+            contentNode={entry.content ? <MarkdownView source={entry.content} entries={allEntries} data-testid="entry-content" /> : null}
+          />
+        ) : (
+          entry.content && (
+            <MarkdownView source={entry.content} entries={allEntries} data-testid="entry-content" />
+          )
         )}
 
         {related.length > 0 && (

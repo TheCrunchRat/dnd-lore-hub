@@ -3,7 +3,7 @@ import { ArrowLeft, ChevronUp, ChevronDown, ArrowRight, EyeOff, Eye, Save, Rotat
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import api, { formatApiError } from "../lib/api";
-import { BLOCKS } from "../lib/layouts";
+import { BLOCKS, effectivePage } from "../lib/layouts";
 import { toast } from "sonner";
 
 const PAGES = [
@@ -22,7 +22,12 @@ export default function AdminLayouts() {
   const load = async () => {
     try {
       const { data } = await api.get("/layouts");
-      setLayout(JSON.parse(JSON.stringify(data)));
+      // Reconcile against the BLOCKS registry so new blocks always appear in the editor
+      const reconciled = {
+        character_sheet: effectivePage(data, "character_sheet"),
+        dice_page: effectivePage(data, "dice_page"),
+      };
+      setLayout(reconciled);
     } catch (e) { toast.error(formatApiError(e)); }
   };
   useEffect(() => { load(); }, []);
@@ -31,7 +36,7 @@ export default function AdminLayouts() {
     return (
       <div className="max-w-3xl mx-auto px-6 py-20 text-center">
         <h1 className="font-serif-display text-3xl text-bone">DM only</h1>
-        <p className="text-muted-bone mt-2">You need the keeper's seal to edit page layouts.</p>
+        <p className="text-muted-bone mt-2">You need the keeper&rsquo;s seal to edit page layouts.</p>
       </div>
     );
   }
