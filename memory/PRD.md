@@ -123,6 +123,15 @@
   - `SpellManager` spell pills for origin spells now have a small **"View on tree"** external-link icon next to the flame. Clicking it navigates to `/magic/<tree.slug>?node=<nodeId>`
   - `MagicTree` page reads `?node=` on load: auto-selects the node, opens the NodeEditor panel, plays a 2.4s gold pulse ring (`@keyframes tree-node-pulse` in `index.css`), then strips the query param so refreshes don't repeat. `TreeCanvas` accepts a new `highlightedNodeId` prop for the pulse
   - Backend regression: 46/46 pytests still green
+- **Rest System Overhaul**:
+  - Removed the Spell Slots card from `CharacterSheet` and the `Spell Slots (max / used)` step from `CharacterBuilder` (legacy fields stay in the DB for back-compat)
+  - New `RestManager.jsx` mounts under `ResourceBar` on the sheet with **Long Rest** + **Short Rest** buttons and a gear icon → portal modal `RestConfig` (form per rest type with HP & resource rows, each row has a value input + Flat/% toggle)
+  - Backend `PlayerCharacterIn.rest_config: Optional[dict]`. POST initializes to `{}`. PUT merges via existing `if v is not None` block
+  - Defaults if no config saved: long = 100% HP / 100% resource; short = 25% HP / 50% resource
+  - Long Rest also resets legacy `spell_slots_used = {}` (back-compat); both rests clamp `current_hp` / `resource_current` to their respective max
+  - Bugfix: `StatBlock` was rendering literal `0` under HP/AC/Speed/Init when `mod === 0` (classic `0 && JSX` falsy trap). Switched to `Boolean(mod)` guard + ternary
+  - EntryDetail legacy-properties filter now also hides `rest_config`
+  - Tests: `/app/backend/tests/test_rest_config.py` — 3/3 pass · 49/49 total
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)

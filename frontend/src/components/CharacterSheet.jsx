@@ -169,7 +169,7 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
 }
 
 function StatBlock({ icon: Icon, label, value, mod, sources }) {
-  const hasMod = mod && mod !== 0;
+  const hasMod = Boolean(mod);
   const title = hasMod && sources?.length
     ? `From:\n` + sources.map((s) => ` · ${s.tree}: ${s.node} (${s.value > 0 ? "+" : ""}${s.value})`).join("\n")
     : undefined;
@@ -178,11 +178,11 @@ function StatBlock({ icon: Icon, label, value, mod, sources }) {
       <Icon className="w-4 h-4 text-lantern mx-auto mb-1" strokeWidth={1.5} />
       <div className="text-[10px] tracking-[0.3em] uppercase text-muted-bone">{label}</div>
       <div className="font-serif-display text-2xl text-bone leading-none mt-1">{value}</div>
-      {hasMod && (
+      {hasMod ? (
         <div className={`absolute top-1 right-1 text-[9px] tracking-widest uppercase ${mod > 0 ? "text-emerald-300" : "text-red-300"}`}>
           {mod > 0 ? "+" : ""}{mod}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
