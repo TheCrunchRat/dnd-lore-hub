@@ -156,10 +156,19 @@
   - **CharacterPortrait** slot at the top of the sheet — `metadata.portrait_url`, drag-and-drop upload via existing ImageUploader, single-letter placeholder, Remove button. Wrapped in a `lantern-card vine-frame` with gold border/glow
   - **ResourceBar** "Add resource" button reduced to a small inline pill (border-rust/60, single Plus icon + 'Add')
   - Backend regression: 61/61 pytests still green
+- **Admin-configurable Page Layouts (1a+2c+3a)**:
+  - New `layouts.py` backend module + `realm_layouts` singleton Mongo doc keyed by `_id: "default"`. `DEFAULT_LAYOUTS` defines per-page block order for `character_sheet` (portrait, equip, resources, rest, modifiers, rollers, stats, abilities, saves_skills, spells, treesections, gear, content) and `dice_page` (active_pc, display, quick, builder + live_feed in the right rail)
+  - Endpoints: `GET /api/layouts` public (merges defaults), `PUT /api/layouts` admin-only (per-page payload), 66/66 pytests pass
+  - `lib/layouts.js` (frontend): `BLOCKS` registry + human labels, `useRealmLayout()` hook, `effectivePage()` reconciles missing keys (appends to `left`) + drops stale keys, `blockConfig()` for per-block settings
+  - `AdminLayouts.jsx` (DM editor, route `/admin/layouts`): three slots (Main / Side / Hidden), per-block up/down + slot dropdown, per-block settings (portrait size, live_feed limit), Save + Reset Page. New tile `layouts-admin-link` on `/admin`
+  - `CharacterSheet.jsx` refactored: dynamic `renderBlock(key)` switch driven by `effectivePage(layout, "character_sheet")`. **`LiveRollFeed` removed entirely** (moved to Dice page per user request). 1-col when right slot empty, 2-col grid when populated. `EntryDetail` now passes `equipNode` + `contentNode` props so EquipBanner and markdown body can be slotted into the layout
+  - `Dice.jsx` refactored: same renderBlock pattern. `live_feed` block ("Around the Table") owns the right rail by default; DM can move it to main column / hide it
+  - Tests: `/app/backend/tests/test_layouts.py` (5 new) — 66/66 pytests pass. Frontend e2e verified: move live_feed Side→Main on `/admin/layouts` reflects on `/dice` as single-column; LiveRollFeed confirmed absent from `/characters/{slug}`
 
 ## Backlog / Next
+- **P1** "Whose turn?" highlight on Dice page live feed (highlight latest Initiative roll's PC)
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
-- **P2** Refactor: break `server.py` (now ~2080 lines) into route modules under `/app/backend/routes`
+- **P2** Refactor: break `server.py` (now ~2200 lines) into route modules under `/app/backend/routes`
 - **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
 
 ## Test Credentials
