@@ -181,10 +181,12 @@ def test_gated_modifier_node_persists(dm_session):
     try:
         g = dm_session.get(f"{BASE_URL}/api/entries/{WAWA_SLUG}").json()
         meta = g["metadata"]
+        # Pin level below the gate so the "still below the gate" assertion holds
+        # regardless of prior data accumulation.
         payload = {
             "player_name": meta.get("owner", "Laz"),
             "name": g["title"],
-            "level": meta.get("level", 4),
+            "level": 4,
             "foundation_unlocks": [{"tree_id": tree["id"], "node_id": "gated_node_1"}],
         }
         r = dm_session.put(f"{BASE_URL}/api/pcs/{WAWA_ID}", json=payload)

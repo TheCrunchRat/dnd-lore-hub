@@ -165,6 +165,20 @@
   - `Dice.jsx` refactored: same renderBlock pattern. `live_feed` block ("Around the Table") owns the right rail by default; DM can move it to main column / hide it
   - Tests: `/app/backend/tests/test_layouts.py` (5 new) — 66/66 pytests pass. Frontend e2e verified: move live_feed Side→Main on `/admin/layouts` reflects on `/dice` as single-column; LiveRollFeed confirmed absent from `/characters/{slug}`
 - **"Whose turn?" highlight on Dice live feed (P1)**: the most-recent `kind:"init"` roll in the feed pins to the top with a bright `#FBBF24` border, ember-pulse glow, and a `★ CURRENT TURN — <pc_name or player>` badge (`data-testid="current-turn"` + `data-testid="current-turn-badge"`). Stays "current" until another initiative roll is posted, so the table can flip between actors naturally
+- **Backend modularization Phase 2 (P2 finished)**: extracted *every* remaining route group into `/app/backend/routes/*.py`. `server.py` is now 99 lines (was 2204 before the refactor; 1463 after Phase 1):
+  - `/app/backend/models.py` — shared Pydantic models + formatters (`UserPublic`, `ProfileIn`, `LoginIn`, `RegisterIn`, `EntryIn`, `EntryOut`, `MapPositionIn`, `entry_to_out`, `profile_to_out`)
+  - `routes/auth.py` (153 lines) — `/auth/login`, `/auth/register`, `/auth/logout`, `/auth/me`, `/auth/refresh`, `/profile/me`, `/profile/{user_id}` + `_profile_stats` / `_profile_characters` helpers
+  - `routes/entries.py` (131) — entries CRUD + `/stats` + `/settings`
+  - `routes/guides.py` (103) — guides CRUD + `_make_unique_guide_slug`
+  - `routes/maps.py` (145) — regional maps + `set_default` / `delete` (with unpin-on-delete) + `/entries/{id}/position`
+  - `routes/dice.py` (66) — `/dice/rolls` POST/GET/DELETE with bounded retention
+  - `routes/magic.py` (194) — `/magic/trees` CRUD + `MagicNode` / `MagicTreeIn` / `NodeModifier` models + `/spells/library` (unified SRD + homebrew + magic-node spells)
+  - `routes/sessions.py` (239) — sessions CRUD + RSVPs + per-session comments (post / edit / delete / pin / lock)
+  - `routes/pcs.py` (311) — Player Characters CRUD + `_can_modify_pc` + active-pc (`/me/active-pc`, `/pcs/{id}/equip`, `/pcs/unequip`)
+  - `routes/rules.py` (89), `routes/layouts.py` (31), `storage.py` (126), `seeds.py` (433), `deps.py` (155) — unchanged from Phase 1
+  - `server.py` (99) — now JUST imports each router, mounts them under `api = APIRouter(prefix="/api")`, configures CORS, and registers startup/shutdown
+  - Fixed one pre-existing flaky test (`test_gated_modifier_node_persists`) that depended on `wawa.level < 10` from accumulated state — now pins the level via the test payload
+  - **All 66 pytests pass** post-refactor. Live smoke: 11 endpoint groups (`/auth`, `/profile`, `/entries`, `/sessions`, `/magic/trees`, `/maps`, `/guides`, `/spells/library`, `/layouts`, `/rules/*`, `/dice/rolls`) all 200 OK
 - **Backend modularization (P2)**: `server.py` shrunk from 2204 → 1463 lines (~33% reduction). Extracted:
   - `/app/backend/deps.py` — Mongo client, logger, JWT config, auth helpers (`hash_password`, `verify_password`, token creators, cookie helpers, `get_current_user`, `get_optional_user`), `slugify`, `CATEGORIES`, storage config constants
   - `/app/backend/seeds.py` — all `seed_*` functions (admins, entries, magic trees, rules, default map, guides) and tree-data helpers (`_node`, `_wickfire_nodes`, etc.) + `SEED_ENTRIES` / `SEED_MAGIC_TREES`
@@ -175,7 +189,7 @@
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
-- **P2** Continue route extraction — pull auth / profile / entries / sessions / pcs / magic / maps / guides / dice / settings into `/app/backend/routes/*.py` modules (server.py is now 1463 lines after Phase 1 extraction)
+- **P2** Continue refactor as the codebase grows — extract `models.py` into per-domain submodules if the file exceeds 250 lines; consider `db/indexes.py` for the index-creation block in `server.py`
 - **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
 
 ## Test Credentials
