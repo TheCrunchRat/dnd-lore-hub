@@ -179,6 +179,13 @@
   - `server.py` (99) — now JUST imports each router, mounts them under `api = APIRouter(prefix="/api")`, configures CORS, and registers startup/shutdown
   - Fixed one pre-existing flaky test (`test_gated_modifier_node_persists`) that depended on `wawa.level < 10` from accumulated state — now pins the level via the test payload
   - **All 66 pytests pass** post-refactor. Live smoke: 11 endpoint groups (`/auth`, `/profile`, `/entries`, `/sessions`, `/magic/trees`, `/maps`, `/guides`, `/spells/library`, `/layouts`, `/rules/*`, `/dice/rolls`) all 200 OK
+- **Shop & Merchants (P1 — full feature)**:
+  - **Backend**: new `/app/backend/routes/shop.py` (380 lines, 12 endpoints) — merchant CRUD with cascade delete, item CRUD, `/shop/merchants/{id}/toggle-open`, purchase-request flow (`POST /shop/items/{id}/request` → `GET /shop/requests` → `POST /shop/requests/{id}/{approve|deny|cancel}`), and DM gold adjust `PUT /pcs/{id}/gold` (`{set|delta}`). On approve: deducts price from `metadata.gold_gp`, appends item name to `metadata.equipment`, decrements stock if tracked. Closed shops block purchase with 400. Duplicate pending requests blocked with 409. Insufficient gold blocked at approve time with 400.
+  - **Data model**: `shop_merchants`, `shop_items`, `shop_requests` collections (indexed). `PlayerCharacterIn.gold_gp` added. Seeder ships 2 merchants (Quill of the Wickrow / Maerin Bone-Trader) with 15 items combined; featured-item flags pre-set.
+  - **Frontend Shop page (`/shop`)**: full inn-counter scene — background image with gradient overlay, portrait + speech-bubble greeting, featured-row of large item cards anchored over the counter, "rest of wares" responsive grid below. Merchant tab strip up top. Status strip shows active PC + gold balance + pending requests. Click item → modal with description + affordance check + note + "Request to buy". Closed merchants show a dashed-border "Shuttered for the night" panel with optional custom closed-art (lantern pulse fallback).
+  - **Frontend Admin panel (`/admin/shop`)**: 3 tabs (Merchants / Items / Requests). Merchant form: name, title, accent color, open toggle, greeting, description, and 4 separate ImageUploader fields (portrait / background / counter / closed art). Item form: merchant select, category enum, rarity enum, price, stock, featured toggle, description, image. Requests tab shows pending list with approve / deny (with reason modal) + collapsible "past decisions" trail. Pending-count badge on the tab.
+  - **Character sheet**: gold balance shown as a `Coins` pill under alignment (`data-testid="sheet-gold"`).
+  - **Tests**: 21 new pytests in `/app/backend/tests/test_shop.py` cover the full flow (request → duplicate 409 → approve gold-deduct + equipment append → insufficient gold 400 → deny w/ reason → cancel → closed shop 400) + authz. **87/87 backend tests pass.** Frontend e2e via testing agent — 100% on smoke flows (anon view, login + gold strip, item modal, admin tabs, toggle-open round-trip, sheet-gold).
 - **Backend modularization (P2)**: `server.py` shrunk from 2204 → 1463 lines (~33% reduction). Extracted:
   - `/app/backend/deps.py` — Mongo client, logger, JWT config, auth helpers (`hash_password`, `verify_password`, token creators, cookie helpers, `get_current_user`, `get_optional_user`), `slugify`, `CATEGORIES`, storage config constants
   - `/app/backend/seeds.py` — all `seed_*` functions (admins, entries, magic trees, rules, default map, guides) and tree-data helpers (`_node`, `_wickfire_nodes`, etc.) + `SEED_ENTRIES` / `SEED_MAGIC_TREES`
@@ -188,7 +195,7 @@
   - `server.py` now imports from these modules and just hosts the remaining route groups (auth, profile, entries, settings, guides, maps, dice, magic, sessions, comments, PCs, equip). Sub-routers are mounted under the same `/api` prefix via `api.include_router(sub)`. 66/66 pytests pass; live `/api/layouts`, `/api/rules/*`, `/api/entries`, `/api/dice/rolls` curls all 200 OK
 
 ## Backlog / Next
-- **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
+- **P2** Polish: replace `window.confirm()` in `AdminShop.jsx` destructive actions with the app's themed modal pattern for consistency
 - **P2** Continue refactor as the codebase grows — extract `models.py` into per-domain submodules if the file exceeds 250 lines; consider `db/indexes.py` for the index-creation block in `server.py`
 - **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
 
