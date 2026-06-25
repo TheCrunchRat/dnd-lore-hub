@@ -36,7 +36,7 @@ export default function Spells() {
 
   const load = () => {
     setLoading(true);
-    api.get("/rules/spells")
+    api.get("/spells/library")
       .then((r) => setSpells(r.data || []))
       .catch((e) => toast.error(formatApiError(e)))
       .finally(() => setLoading(false));
@@ -95,29 +95,28 @@ export default function Spells() {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="max-w-7xl mx-auto px-6 py-10">
-        {/* Header */}
-        <div className="mb-8 flex items-end justify-between flex-wrap gap-4">
-          <div>
-            <div className="text-xs tracking-[0.3em] uppercase text-lantern inline-flex items-center gap-2 mb-2">
-              <BookOpen className="w-3.5 h-3.5" /> Rules Library
-            </div>
-            <h1 className="font-serif-display text-4xl sm:text-5xl text-bone leading-tight">Spell Compendium</h1>
-            <p className="text-sm text-muted-bone italic mt-2 max-w-2xl">
-              Every cantrip and incantation known to the realm, alongside whatever your DM has invented.
-            </p>
+    <div className="w-full">
+      {/* Header */}
+      <div className="mb-8 flex items-end justify-between flex-wrap gap-4">
+        <div>
+          <div className="text-xs tracking-[0.3em] uppercase text-lantern inline-flex items-center gap-2 mb-2">
+            <BookOpen className="w-3.5 h-3.5" /> Rules Library
           </div>
-          {isAdmin && (
-            <button
-              onClick={() => setEditing({ ...EMPTY_DRAFT })}
-              data-testid="spell-new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#FBBF24] text-[#0B0E0C] font-semibold text-sm hover:bg-[#F59E0B]"
-            >
-              <Plus className="w-4 h-4" /> Forge Homebrew Spell
-            </button>
-          )}
+          <h2 className="font-serif-display text-3xl sm:text-4xl text-bone leading-tight">Spell Compendium</h2>
+          <p className="text-sm text-muted-bone italic mt-2 max-w-2xl">
+            Every cantrip and incantation known to the realm, alongside any spell-marked nodes from the magic trees.
+          </p>
         </div>
+        {isAdmin && (
+          <button
+            onClick={() => setEditing({ ...EMPTY_DRAFT })}
+            data-testid="spell-new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#FBBF24] text-[#0B0E0C] font-semibold text-sm hover:bg-[#F59E0B]"
+          >
+            <Plus className="w-4 h-4" /> Forge Homebrew Spell
+          </button>
+        )}
+      </div>
 
         {/* Filter bar */}
         <div className="lantern-card p-4 mb-6">
@@ -188,7 +187,6 @@ export default function Spells() {
             ))}
           </div>
         )}
-      </div>
 
       {editing && (
         <SpellEditor
@@ -211,10 +209,12 @@ export default function Spells() {
 
 function SpellCard({ spell, isAdmin, onEdit, onDelete }) {
   const isHomebrew = spell.source === "homebrew";
+  const isMagicNode = spell.source === "magic-node";
+  const borderColor = isMagicNode ? `${spell.accent_color || "#FBBF24"}AA` : isHomebrew ? "#F97316AA" : null;
   return (
     <div
       className="lantern-card vine-frame p-4 h-full flex flex-col"
-      style={isHomebrew ? { borderColor: "#F97316AA" } : {}}
+      style={borderColor ? { borderColor } : {}}
       data-testid={`spell-card-${spell.id}`}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
@@ -228,6 +228,20 @@ function SpellCard({ spell, isAdmin, onEdit, onDelete }) {
               <>
                 <span className="text-muted-bone">·</span>
                 <span className="text-[#F97316]" data-testid="homebrew-badge">Homebrew</span>
+              </>
+            )}
+            {isMagicNode && (
+              <>
+                <span className="text-muted-bone">·</span>
+                <a
+                  href={`/magic/${spell.tree_slug}`}
+                  className="hover:underline"
+                  style={{ color: spell.accent_color || "#FBBF24" }}
+                  data-testid="magic-node-badge"
+                  title={`From magic tree: ${spell.tree_name}`}
+                >
+                  {spell.tree_name}
+                </a>
               </>
             )}
           </div>

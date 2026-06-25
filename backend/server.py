@@ -780,6 +780,17 @@ class MagicNode(BaseModel):
     rank_descriptions: Optional[List[str]] = Field(default_factory=list)
     # Minimum character level required to unlock this node
     level_required: Optional[int] = None
+    # ---- Spell properties (when set, this node also appears in /api/spells/library) ----
+    spell_level: Optional[int] = None      # 0..9; None = not a spell
+    school: Optional[str] = ""
+    casting_time: Optional[str] = ""
+    spell_range: Optional[str] = ""
+    components: Optional[str] = ""
+    duration: Optional[str] = ""
+    spell_classes: Optional[List[str]] = Field(default_factory=list)
+    # ---- Stat modifiers granted while this node is unlocked & level-gate met ----
+    # Each modifier: {"stat": "str"|"dex"|"con"|"int"|"wis"|"cha"|"hp"|"ac"|"speed"|"init", "value": int}
+    modifiers: Optional[List[dict]] = Field(default_factory=list)
 
 
 class MagicTreeIn(BaseModel):
@@ -869,6 +880,52 @@ async def delete_magic_tree(tree_id: str, _user: dict = Depends(get_current_user
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Tree not found")
     return {"ok": True}
+
+
+@api.get("/spells/library")
+async def spell_library():
+    """Unified spell list: SRD + homebrew rules_spells AND magic-tree nodes
+    that have `spell_level` set. Returns the same shape for all sources."""
+    items: List[dict] = []
+    async for sp in db.rules_spells.find({}, {"_id": 0}):
+        items.append({
+            "id": sp.get("id"),
+            "name": sp.get("name", ""),
+            "level": sp.get("level", 0),
+            "school": sp.get("school", ""),
+            "casting_time": sp.get("casting_time", ""),
+            "range": sp.get("range", ""),
+            "components": sp.get("components", ""),
+            "duration": sp.get("duration", ""),
+            "classes": sp.get("classes", []),
+            "description": sp.get("description", ""),
+            "source": sp.get("source", "srd"),
+        })
+    async for tree in db.magic_trees.find({}, {"_id": 0}):
+        for n in (tree.get("nodes") or []):
+            if n.get("spell_level") is None:
+                continue
+            items.append({
+                "id": f"{tree['id']}::{n['id']}",
+                "node_id": n["id"],
+                "tree_id": tree["id"],
+                "tree_name": tree.get("name", ""),
+                "tree_slug": tree.get("slug", ""),
+                "tree_category": tree.get("tree_category", "origin"),
+                "accent_color": tree.get("accent_color", "#FBBF24"),
+                "name": n.get("name", ""),
+                "level": int(n.get("spell_level") or 0),
+                "school": n.get("school") or "",
+                "casting_time": n.get("casting_time") or "",
+                "range": n.get("spell_range") or "",
+                "components": n.get("components") or "",
+                "duration": n.get("duration") or "",
+                "classes": n.get("spell_classes") or [],
+                "description": n.get("description") or "",
+                "source": "magic-node",
+            })
+    items.sort(key=lambda s: (s.get("level", 0), s.get("name", "").lower()))
+    return items
 
 
 # ---------------- Session Scheduler ----------------

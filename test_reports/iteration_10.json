@@ -1,0 +1,33 @@
+{
+  "summary": "Iter_10 — Full E2E verification of /spells→/magic merger, inline Spell Compendium, NodeEditor spell+modifier extensions, and CharacterSheet stat-modifier rendering. Backend: 6 new pytests (test_spell_library_and_modifiers.py) all green; existing 11 regression tests still green (17/17 = 100%). Frontend (anonymous): /spells now redirects to /, top nav has no standalone 'Spells' link, /magic shows the 'Spell Compendium' toggle (data-testid='toggle-compendium-btn'), clicking it swaps the tree-grid for the inline compendium with 19 spells, Ember Lash card carries the tree accent border + clickable [Wickfire] magic-node-badge linking to /magic/wickfire, 'Homebrew only' filter correctly EXCLUDES magic-node spells (Ember Lash count goes 1→0). Back to Trees restores the magic-tabs grid. Frontend (DM): /magic/wickfire view-mode shows node-spell-summary ('Also a spell · Lv 1 · Evocation · Cast 1 action · Range 30 feet · V,S · Instantaneous') AND node-modifiers-summary ('Grants +1 STR -1 WIS'). Edit Tree mode exposes toggle-as-spell (checked), node-spell-level=1, node-school=Evocation, node-modifiers section with two pre-filled rows (str/+1 and wis/-1), and add-modifier / modifier-remove-N add and delete rows correctly. CharacterSheet integration: bound Ember Lash to wawa via PUT /api/entries (DM), level set to 5; STR box renders '11' with green '+1' badge, WIS box renders '9' with red '-1' badge, both with hover tooltip 'Wickfire: Ember Lash (±1)'. HP/AC/Speed/Init StatBlocks render at top of sheet. wawa fully restored after test (level=3, 5 origin_unlocks, no Ember Lash binding). No 500s, no console errors apart from expected /api/auth/me 401 on anon load.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_spell_library_and_modifiers.py",
+    "/app/test_reports/pytest/iter10_spell_library.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py /api/spells/library iterates all magic_trees on every call. Fine at <200 trees, but consider a Mongo aggregation projection or caching once tree count grows.",
+    "MagicNode.modifiers is List[dict] (untyped). For long-term safety, introduce a NodeModifier(BaseModel) with stat: Literal[...] and value: int — would catch malformed payloads at API boundary instead of silently being ignored by computeModifiers().",
+    "statModifiers.js handles class_tree_id by auto-applying ALL nodes in that tree, regardless of whether the PC has actually unlocked them on the tree page. Spec wording supports this ('via their class_tree_id'), but flag it so DMs understand a class tree's mods stack on the whole class.",
+    "CharacterSheet.jsx StatBlock title attribute uses '\\n' inside title — browsers render the newline as a space, so multi-line source lists appear as one long string. Cosmetic; tooltip content is still readable. Consider a <Tooltip> component for proper multi-line rendering.",
+    "NodeEditor.jsx is now 451 lines — under the 700-line limit but trending up. SpellFields & ModifiersEditor are already extracted as inline components; consider promoting them to /components/magic-tree/* files for reuse if the editor keeps growing.",
+    "Spells.jsx 'Homebrew only' filter checks source==='homebrew' which correctly excludes both 'srd' and 'magic-node'. Make sure docs/UI tooltip clarifies this — a user might expect magic-node spells to count as homebrew.",
+    "MagicList.jsx renders the toggle-compendium-btn TWICE (lines 88 + 113) — once in the header bar (admin layout) and once below for the non-admin layout. Page selectors `[data-testid=\"toggle-compendium-btn\"]` will match both; tests should use .first or be aware of the duplication."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_spell_library_and_modifiers.py (new)"
+  ],
+  "success_rate": { "backend": "100% (17/17 pytests pass)", "frontend": "100% (all 11 spec items verified)" },
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1",
+  "seed_data_creation": "Temporarily bound 'Ember Lash' (Wickfire node spell-test-node) to wawa with level=5 to verify modifier rendering on CharacterSheet, then fully restored wawa to its original state (level=3, 5 origin_unlocks, no Ember Lash binding). Created/deleted TEST_StatMod_Tree and TEST_LegacyTree inside pytest with tearDown — no lingering data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter_10 ships: (a) /spells route removed, nav cleaned, (b) inline Spell Compendium toggle on /magic with magic-node-badge linking to source tree, (c) GET /api/spells/library merges SRD + homebrew + magic-tree nodes with spell_level (each magic-node entry carries tree_id/tree_name/tree_slug/accent_color/node_id/source='magic-node'), (d) MagicNode extended with spell_level/school/casting_time/spell_range/components/duration/spell_classes/modifiers (extras=ignore), (e) NodeEditor 'Stat Modifiers' + 'Also publish as a spell' blocks (testids: toggle-as-spell, node-spell-level, node-school, node-modifiers, add-modifier, modifier-stat-N, modifier-value-N, modifier-remove-N; view mode: node-spell-summary, node-modifiers-summary), (f) CharacterSheet applies modifiers to STR/DEX/CON/INT/WIS/CHA + HP/AC/Speed/Init via statModifiers.js with level-gate (pc.level >= node.level_required) and source tooltip. Wickfire tree id = 466b9aa0-e675-4e2e-a1a2-a431b9bc3da1, Ember Lash node id = spell-test-node (DO NOT delete). wawa PC id = a6ded32c-bce2-4eaf-bf00-939a5fa345f8, currently level=3, owner=Laz, class_tree_id=fd87b990-2593-40ef-985b-a699dab78e5e. Use PUT /api/entries/{id} (not /api/pcs/{id}) — pcs is method-not-allowed on GET; both PCs and other entries share /api/entries.",
+  "rca of the issue": "N/A — no broken flows. The only false-start: initial assumption that /api/pcs/wawa would GET (it does not, only POST/PUT/DELETE for create-update-delete; reads go through /api/entries/{slug_or_id}). Adjusted accordingly."
+}

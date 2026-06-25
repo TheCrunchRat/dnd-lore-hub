@@ -14,7 +14,6 @@ const navItems = [
   { to: "/guide", label: "Guide" },
   { to: "/bestiary", label: "Bestiary" },
   { to: "/magic", label: "Magic" },
-  { to: "/spells", label: "Spells" },
   { to: "/shop", label: "Shop" },
   { to: "/dice", label: "Dice" },
 ];

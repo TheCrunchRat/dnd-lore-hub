@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Sparkles, Plus, ChevronRight, Star, BookOpen, Swords } from "lucide-react";
 import { toast } from "sonner";
 import MagicBackdrop from "../components/MagicBackdrop";
+import SpellCompendium from "./Spells";
 
 const CATEGORIES = [
   { key: "origin", label: "Origin Magic", singular: "School", icon: Sparkles,
@@ -27,6 +28,7 @@ export default function MagicList() {
   const [tab, setTab] = useState("origin");
   const [showNew, setShowNew] = useState(false);
   const [newName, setNewName] = useState("");
+  const [showCompendium, setShowCompendium] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -80,16 +82,51 @@ export default function MagicList() {
           </p>
         </div>
         {user && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCompendium((v) => !v)}
+              data-testid="toggle-compendium-btn"
+              className={`inline-flex items-center gap-2 px-5 py-3 font-semibold tracking-wide transition-colors border ${
+                showCompendium
+                  ? "border-[#FBBF24] text-[#0B0E0C] bg-[#FBBF24] hover:bg-[#F59E0B]"
+                  : "border-rust text-bone hover:border-[#FBBF24]/60 hover:text-lantern"
+              }`}
+            >
+              <BookOpen className="w-4 h-4" />
+              {showCompendium ? "Back to Trees" : "Spell Compendium"}
+            </button>
+            {!showCompendium && (
+              <button
+                onClick={openNew}
+                disabled={creating}
+                data-testid="new-tree-btn"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] transition-colors disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" /> New {cat?.singular}
+              </button>
+            )}
+          </div>
+        )}
+        {!user && (
           <button
-            onClick={openNew}
-            disabled={creating}
-            data-testid="new-tree-btn"
-            className="inline-flex items-center gap-2 px-5 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] transition-colors disabled:opacity-50"
+            onClick={() => setShowCompendium((v) => !v)}
+            data-testid="toggle-compendium-btn"
+            className={`inline-flex items-center gap-2 px-5 py-3 font-semibold tracking-wide transition-colors border ${
+              showCompendium
+                ? "border-[#FBBF24] text-[#0B0E0C] bg-[#FBBF24] hover:bg-[#F59E0B]"
+                : "border-rust text-bone hover:border-[#FBBF24]/60 hover:text-lantern"
+            }`}
           >
-            <Plus className="w-4 h-4" /> New {cat?.singular}
+            <BookOpen className="w-4 h-4" />
+            {showCompendium ? "Back to Trees" : "Spell Compendium"}
           </button>
         )}
       </div>
+
+      {showCompendium ? (
+        <SpellCompendium />
+      ) : (
+        <>
 
       <div className="flex gap-1 mb-8 border-b border-rust overflow-x-auto" data-testid="magic-tabs">
         {CATEGORIES.map((c) => {
@@ -153,6 +190,8 @@ export default function MagicList() {
             </Link>
           ))}
         </div>
+      )}
+        </>
       )}
 
       </div>

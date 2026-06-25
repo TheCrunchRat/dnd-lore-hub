@@ -255,6 +255,12 @@ export default function NodeEditor({
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
+
+          {/* ---- Spell fields ---- */}
+          <SpellFields node={node} onChange={onChange} />
+
+          {/* ---- Stat modifiers ---- */}
+          <ModifiersEditor node={node} onChange={onChange} />
         </>
       )}
 
@@ -273,7 +279,157 @@ export default function NodeEditor({
           </div>
         </>
       )}
+
+      {/* View-mode spell info */}
+      {!editMode && node.spell_level !== null && node.spell_level !== undefined && (
+        <div className="mt-4 lantern-card p-3" style={{ borderColor: `${nodeColor}55` }} data-testid="node-spell-summary">
+          <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5 inline-flex items-center gap-2">
+            <Icons.Sparkles className="w-3 h-3" />
+            Also a spell · {node.spell_level === 0 ? "Cantrip" : `Lv ${node.spell_level}`}
+            {node.school ? ` · ${node.school}` : ""}
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] text-muted-bone">
+            {node.casting_time && <div><span className="text-lantern/70 mr-1">Cast:</span>{node.casting_time}</div>}
+            {node.spell_range && <div><span className="text-lantern/70 mr-1">Range:</span>{node.spell_range}</div>}
+            {node.components && <div><span className="text-lantern/70 mr-1">Comp:</span>{node.components}</div>}
+            {node.duration && <div><span className="text-lantern/70 mr-1">Dur:</span>{node.duration}</div>}
+          </div>
+        </div>
+      )}
+
+      {/* View-mode modifier badges */}
+      {!editMode && (node.modifiers || []).length > 0 && (
+        <div className="mt-3" data-testid="node-modifiers-summary">
+          <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1.5">Grants</div>
+          <div className="flex flex-wrap gap-1.5">
+            {node.modifiers.map((m, i) => (
+              <span key={i}
+                className={`text-[11px] px-2 py-0.5 border ${
+                  m.value > 0 ? "border-emerald-400/40 text-emerald-300" : "border-red-400/40 text-red-300"
+                }`}>
+                {m.value > 0 ? "+" : ""}{m.value} {String(m.stat || "").toUpperCase()}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+const STATS = [
+  { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
+  { key: "int", label: "INT" }, { key: "wis", label: "WIS" }, { key: "cha", label: "CHA" },
+  { key: "hp", label: "HP" }, { key: "ac", label: "AC" }, { key: "speed", label: "Speed" }, { key: "init", label: "Init" },
+];
+const SCHOOLS = ["", "Abjuration", "Conjuration", "Divination", "Enchantment", "Evocation", "Illusion", "Necromancy", "Transmutation"];
+
+function SpellFields({ node, onChange }) {
+  const enabled = node.spell_level !== null && node.spell_level !== undefined;
+  return (
+    <div className="border border-rust p-3 mb-4" data-testid="node-spell-fields">
+      <label className="flex items-center gap-2 mb-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => onChange(e.target.checked
+            ? { spell_level: 0, casting_time: node.casting_time || "1 action" }
+            : { spell_level: null }
+          )}
+          data-testid="toggle-as-spell"
+          className="accent-[#FBBF24]"
+        />
+        <span className="text-[11px] tracking-[0.25em] uppercase text-lantern">Also publish as a spell</span>
+      </label>
+      {enabled && (
+        <>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] tracking-widest uppercase text-muted-bone">Spell Level</span>
+              <select value={node.spell_level ?? 0} onChange={(e) => onChange({ spell_level: parseInt(e.target.value, 10) })}
+                data-testid="node-spell-level"
+                className="px-2 py-1.5 bg-[#0B0E0C] border border-rust text-bone text-sm">
+                {[0,1,2,3,4,5,6,7,8,9].map((l) => <option key={l} value={l}>{l === 0 ? "Cantrip" : `Lv ${l}`}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] tracking-widest uppercase text-muted-bone">School</span>
+              <select value={node.school || ""} onChange={(e) => onChange({ school: e.target.value })}
+                data-testid="node-school"
+                className="px-2 py-1.5 bg-[#0B0E0C] border border-rust text-bone text-sm">
+                {SCHOOLS.map((s) => <option key={s} value={s}>{s || "—"}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <TinyInput label="Casting Time" v={node.casting_time} on={(v) => onChange({ casting_time: v })} placeholder="1 action" />
+            <TinyInput label="Range" v={node.spell_range} on={(v) => onChange({ spell_range: v })} placeholder="60 feet" />
+            <TinyInput label="Components" v={node.components} on={(v) => onChange({ components: v })} placeholder="V, S" />
+            <TinyInput label="Duration" v={node.duration} on={(v) => onChange({ duration: v })} placeholder="Instantaneous" />
+          </div>
+          <TinyInput
+            label="Available to classes (comma sep)"
+            v={(node.spell_classes || []).join(", ")}
+            on={(v) => onChange({ spell_classes: v.split(",").map((s) => s.trim()).filter(Boolean) })}
+            placeholder="Wizard, Sorcerer"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ModifiersEditor({ node, onChange }) {
+  const mods = node.modifiers || [];
+  const update = (i, patch) => {
+    const next = mods.map((m, j) => j === i ? { ...m, ...patch } : m);
+    onChange({ modifiers: next });
+  };
+  const add = () => onChange({ modifiers: [...mods, { stat: "str", value: 1 }] });
+  const remove = (i) => onChange({ modifiers: mods.filter((_, j) => j !== i) });
+
+  return (
+    <div className="border border-rust p-3 mb-4" data-testid="node-modifiers">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] tracking-[0.25em] uppercase text-lantern">Stat Modifiers</span>
+        <button onClick={add} data-testid="add-modifier"
+          className="inline-flex items-center gap-1 px-2 py-1 text-[10px] tracking-widest uppercase border border-rust text-bone hover:border-[#FBBF24]/50 hover:text-lantern">
+          <Plus className="w-3 h-3" /> Add
+        </button>
+      </div>
+      {mods.length === 0 ? (
+        <div className="text-[11px] text-muted-bone italic">No modifiers. Add one to grant a bonus or penalty when this node is unlocked.</div>
+      ) : (
+        <ul className="space-y-1.5">
+          {mods.map((m, i) => (
+            <li key={i} className="flex items-center gap-2" data-testid={`modifier-row-${i}`}>
+              <select value={m.stat} onChange={(e) => update(i, { stat: e.target.value })}
+                data-testid={`modifier-stat-${i}`}
+                className="px-2 py-1 bg-[#0B0E0C] border border-rust text-bone text-sm flex-1">
+                {STATS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+              <input type="number" value={m.value ?? 0}
+                onChange={(e) => update(i, { value: parseInt(e.target.value || "0", 10) })}
+                data-testid={`modifier-value-${i}`}
+                className="w-16 px-2 py-1 bg-[#0B0E0C] border border-rust text-bone text-sm font-mono text-center" />
+              <button onClick={() => remove(i)} data-testid={`modifier-remove-${i}`} className="p-1 text-muted-bone hover:text-red-400">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function TinyInput({ label, v, on, placeholder }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[10px] tracking-widest uppercase text-muted-bone">{label}</span>
+      <input value={v || ""} onChange={(e) => on(e.target.value)} placeholder={placeholder}
+        className="px-2 py-1.5 bg-[#0B0E0C] border border-rust text-bone text-sm" />
+    </label>
   );
 }
 

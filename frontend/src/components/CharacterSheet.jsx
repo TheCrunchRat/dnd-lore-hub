@@ -1,5 +1,7 @@
-import React from "react";
-import { Heart, Shield, Footprints, Sparkles, Sword } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Heart, Shield, Footprints, Sparkles, Sword, Zap } from "lucide-react";
+import api from "../lib/api";
+import { computeModifiers } from "../lib/statModifiers";
 import ResourceBar from "./ResourceBar";
 import SpellManager from "./SpellManager";
 import CharacterTreeSections from "./CharacterTreeSections";
@@ -23,31 +25,67 @@ const profBonus = (level) => 2 + Math.floor((Math.max(1, level || 1) - 1) / 4);
 
 export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
   const m = entry?.metadata || {};
+  const [trees, setTrees] = useState([]);
+  useEffect(() => {
+    api.get("/magic/trees").then((r) => setTrees(r.data || [])).catch(() => {});
+  }, []);
+
+  const { totals: modTotals, byStat } = useMemo(
+    () => computeModifiers(entry, trees),
+    [entry, trees]
+  );
+
   if (m.role !== "PC") return null;
-  const scores = m.ability_scores || {};
+  const rawScores = m.ability_scores || {};
+  const scores = Object.fromEntries(
+    Object.entries(rawScores).map(([k, v]) => [k, (v || 0) + (modTotals[k] || 0)])
+  );
   const pb = profBonus(m.level);
   const profs = new Set(m.proficiencies || []);
   const saves = new Set(m.saving_throws || []);
 
+  const maxHp = (m.max_hp ?? null) === null ? null : (m.max_hp || 0) + (modTotals.hp || 0);
+  const curHp = (m.current_hp ?? m.max_hp ?? null) === null
+    ? null
+    : Math.min(maxHp ?? 999, (m.current_hp ?? m.max_hp ?? 0) + (modTotals.hp || 0));
+  const ac = (m.armor_class ?? null) === null ? null : (m.armor_class || 0) + (modTotals.ac || 0);
+  const speedV = (m.speed ?? null) === null ? null : (m.speed || 0) + (modTotals.speed || 0);
+  const initBonus = (rawScores.dex != null ? mod(scores.dex) : 0) + (modTotals.init || 0);
+
   return (
     <div className="mb-10" data-testid="character-sheet">
       <ResourceBar entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <StatBlock icon={Heart} label="HP" value={`${m.current_hp ?? m.max_hp ?? "—"} / ${m.max_hp ?? "—"}`} />
-        <StatBlock icon={Shield} label="AC" value={m.armor_class ?? "—"} />
-        <StatBlock icon={Footprints} label="Speed" value={m.speed ? `${m.speed} ft` : "—"} />
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <StatBlock icon={Heart} label="HP" value={`${curHp ?? "—"} / ${maxHp ?? "—"}`} mod={modTotals.hp} sources={byStat.hp} />
+        <StatBlock icon={Shield} label="AC" value={ac ?? "—"} mod={modTotals.ac} sources={byStat.ac} />
+        <StatBlock icon={Footprints} label="Speed" value={speedV != null ? `${speedV} ft` : "—"} mod={modTotals.speed} sources={byStat.speed} />
+        <StatBlock icon={Zap} label="Init" value={fmtMod(initBonus)} mod={modTotals.init} sources={byStat.init} />
         <StatBlock icon={Sparkles} label="Prof Bonus" value={`+${pb}`} />
       </div>
 
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
         {ABILITIES.map((a) => {
           const score = scores[a.key];
+          const baseScore = rawScores[a.key];
+          const bonus = modTotals[a.key] || 0;
           const mv = score != null ? mod(score) : null;
           return (
-            <div key={a.key} className="lantern-card p-3 text-center" data-testid={`sheet-ability-${a.key}`}>
+            <div
+              key={a.key}
+              className="lantern-card p-3 text-center relative"
+              data-testid={`sheet-ability-${a.key}`}
+              title={bonus !== 0 && byStat[a.key]?.length
+                ? `Base ${baseScore} ${bonus > 0 ? "+" : ""}${bonus} from:\n` + byStat[a.key].map((s) => ` · ${s.tree}: ${s.node} (${s.value > 0 ? "+" : ""}${s.value})`).join("\n")
+                : undefined}
+            >
               <div className="text-[10px] tracking-[0.3em] uppercase text-lantern">{a.label}</div>
               <div className="font-serif-display text-3xl text-bone leading-none my-1">{score ?? "—"}</div>
               <div className="text-xs text-muted-bone">{mv != null ? fmtMod(mv) : "—"}</div>
+              {bonus !== 0 && (
+                <div className={`absolute top-1 right-1 text-[9px] tracking-widest uppercase ${bonus > 0 ? "text-emerald-300" : "text-red-300"}`}>
+                  {bonus > 0 ? "+" : ""}{bonus}
+                </div>
+              )}
             </div>
           );
         })}
@@ -128,12 +166,21 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
   );
 }
 
-function StatBlock({ icon: Icon, label, value }) {
+function StatBlock({ icon: Icon, label, value, mod, sources }) {
+  const hasMod = mod && mod !== 0;
+  const title = hasMod && sources?.length
+    ? `From:\n` + sources.map((s) => ` · ${s.tree}: ${s.node} (${s.value > 0 ? "+" : ""}${s.value})`).join("\n")
+    : undefined;
   return (
-    <div className="lantern-card p-4 text-center">
+    <div className="lantern-card p-4 text-center relative" title={title}>
       <Icon className="w-4 h-4 text-lantern mx-auto mb-1" strokeWidth={1.5} />
       <div className="text-[10px] tracking-[0.3em] uppercase text-muted-bone">{label}</div>
       <div className="font-serif-display text-2xl text-bone leading-none mt-1">{value}</div>
+      {hasMod && (
+        <div className={`absolute top-1 right-1 text-[9px] tracking-widest uppercase ${mod > 0 ? "text-emerald-300" : "text-red-300"}`}>
+          {mod > 0 ? "+" : ""}{mod}
+        </div>
+      )}
     </div>
   );
 }

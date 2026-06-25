@@ -75,7 +75,7 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
     if (!open) return;
     Promise.all([
       api.get("/rules/races"), api.get("/rules/classes"),
-      api.get("/rules/skills"), api.get("/rules/spells"),
+      api.get("/rules/skills"), api.get("/spells/library"),
       api.get("/rules/_computed/spell_slots"),
       api.get("/magic/trees"),
     ]).then(([r, c, sk, sp, sl, tr]) => {

@@ -17,7 +17,6 @@ import Register from "@/pages/Register";
 import RulesAdmin from "@/pages/RulesAdmin";
 import Guide from "@/pages/Guide";
 import Profile from "@/pages/Profile";
-import Spells from "@/pages/Spells";
 import { Toaster } from "sonner";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -54,7 +53,6 @@ function RouterShell() {
         <Route path="/profile/:id" element={<Profile />} />
         <Route path="/magic" element={<MagicList />} />
         <Route path="/magic/:slug" element={<MagicTree />} />
-        <Route path="/spells" element={<Spells />} />
         <Route path="/world/:slug" element={<EntryDetail />} />
 
         {CATEGORY_ROUTES.map(({ path, category }) => (
