@@ -93,8 +93,8 @@ def test_rest_apply_long_persists_current_hp_and_resource(dm_session, wawa_seed)
     r2 = dm_session.put(f"{BASE_URL}/api/pcs/{WAWA_ID}", json=body2)
     assert r2.status_code == 200, r2.text
     md1 = r2.json()["metadata"]
-    assert md1["current_hp"] == max_hp  # 1+50 flat clamped
-    assert md1["resource_current"] == res_max  # 100% resource
+    assert md1["current_hp"] == new_hp  # clamped to max_hp inside applyRecover
+    assert md1["resource_current"] == new_res
     assert md1["spell_slots_used"] == {}
 
 

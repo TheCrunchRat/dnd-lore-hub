@@ -38,8 +38,11 @@ export default function RestManager({ entry, canEdit, onUpdated }) {
   const [busy, setBusy] = useState(false);
   const rest = m.rest_config || {};
 
-  // Hide entirely if there's no HP and no resource to restore (and viewer can't edit)
-  const hasAnyStat = (m.max_hp != null) || !!m.resource_name;
+  // Pull both new (resources array) and legacy single-resource shapes
+  const resources = Array.isArray(m.resources) && m.resources.length > 0
+    ? m.resources
+    : (m.resource_name ? [{ id: "legacy", name: m.resource_name, max: m.resource_max, current: m.resource_current ?? m.resource_max, color: m.resource_color }] : []);
+  const hasAnyStat = (m.max_hp != null) || resources.length > 0;
   if (!hasAnyStat && !canEdit) return null;
 
   const persist = async (patch, msg) => {
@@ -62,14 +65,20 @@ export default function RestManager({ entry, canEdit, onUpdated }) {
     const c = cfg(rest, kind);
     const patch = {};
     if (m.max_hp != null) {
-      const next = applyRecover(m.current_hp ?? m.max_hp, m.max_hp, c.hp_value, c.hp_is_percent);
-      patch.current_hp = next;
+      patch.current_hp = applyRecover(m.current_hp ?? m.max_hp, m.max_hp, c.hp_value, c.hp_is_percent);
     }
-    if (m.resource_name && m.resource_max != null) {
-      const next = applyRecover(m.resource_current ?? m.resource_max, m.resource_max, c.resource_value, c.resource_is_percent);
-      patch.resource_current = next;
+    if (resources.length > 0) {
+      const recovered = resources.map((r) => ({
+        ...r,
+        current: applyRecover(r.current ?? r.max, r.max, c.resource_value, c.resource_is_percent),
+      }));
+      if (Array.isArray(m.resources)) {
+        patch.resources = recovered;
+      } else {
+        // legacy single resource → write back to legacy fields
+        patch.resource_current = recovered[0].current;
+      }
     }
-    // Long rest also clears any legacy spell-slot usage
     if (kind === "long") patch.spell_slots_used = {};
     persist(patch, kind === "long" ? "Long rest — restored" : "Short rest — restored");
   };
@@ -113,8 +122,8 @@ export default function RestManager({ entry, canEdit, onUpdated }) {
       {configOpen && (
         <RestConfig
           initial={rest}
-          hasResource={!!m.resource_name}
-          resourceName={m.resource_name}
+          hasResource={resources.length > 0}
+          resourceName={resources.length === 1 ? resources[0].name : (resources.length > 1 ? "All resources" : "")}
           onSave={(next) => { persist({ rest_config: next }, "Rest config saved"); setConfigOpen(false); }}
           onClose={() => setConfigOpen(false)}
         />

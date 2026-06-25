@@ -1194,11 +1194,13 @@ class PlayerCharacterIn(BaseModel):
     spell_slots_used: Optional[dict] = None     # {"1": 2, ...} spent per level (≤ max)
     equipment: Optional[List[str]] = None
     features: Optional[List[str]] = None
-    # Custom configurable resource (e.g. Mana / Wickfire / Sorcery Points)
+    # Custom configurable resource (legacy single-resource fields)
     resource_name: Optional[str] = None
     resource_current: Optional[int] = None
     resource_max: Optional[int] = None
     resource_color: Optional[str] = None  # hex; defaults to lantern gold
+    # Multiple resources: [{id, name, max, current, color}]
+    resources: Optional[List[dict]] = None
     # Magic-tree integration
     origin_unlocks: Optional[List[dict]] = None      # [{tree_id, node_id, as_spell: bool}]
     foundation_unlocks: Optional[List[dict]] = None  # [{tree_id, node_id}]
@@ -1259,6 +1261,7 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "resource_max": body.resource_max,
         "resource_current": body.resource_current,
         "resource_color": body.resource_color or "",
+        "resources": body.resources or [],
         "origin_unlocks": body.origin_unlocks or [],
         "foundation_unlocks": body.foundation_unlocks or [],
         "class_tree_id": body.class_tree_id or "",
@@ -1340,19 +1343,23 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "foundation_unlocks": body.foundation_unlocks,
         "class_tree_id": body.class_tree_id,
         "rest_config": body.rest_config,
+        "resources": body.resources,
     }.items():
         if v is not None:
             metadata[k] = v
-    # Custom resource fields: allow explicit clearing (empty/null) to remove the bar
+    # Legacy single-resource fields: only touch when client explicitly sends an
+    # empty string (deliberate clear). Sending None (the default when absent
+    # from the payload) preserves the existing value — this is what fixes the
+    # CharacterBuilder save wiping the resource.
     for k, v in {
         "resource_name": body.resource_name,
         "resource_max": body.resource_max,
         "resource_current": body.resource_current,
         "resource_color": body.resource_color,
     }.items():
-        if v is None or v == "":
+        if v == "":
             metadata.pop(k, None)
-        else:
+        elif v is not None:
             metadata[k] = v
     if current and not metadata.get("user_id"):
         metadata["user_id"] = current["id"]

@@ -1,0 +1,47 @@
+{
+  "summary": "Iter_12 — Verified multi-resource + ActiveModifiersPanel + PUT merge bug fix. Backend: 7 new pytests in test_multi_resources.py all PASS — covers (a) resources array round-trip via PUT /api/pcs + GET /api/entries/{slug}; (b) THE BUG: builder-style PUT without `resources` (only name/player_name/level) preserves the existing resources array unchanged; (c) legacy single resource_* fields preserved when not sent (None ≠ clear); (d) explicit '' on resource_name does clear the legacy fields (deliberate-clear semantics intact); (e) third resource appended persists; (f) gated modifier scenario: tree node with level_required=10 + foundation_unlock binding round-trips; (g) extras allowed on resources entries (extra='ignore'). Frontend smoke (PC viewport, /characters/wawa): ANON view → resource-bars visible read-only, add-resource-btn HIDDEN, active-modifiers-panel visible. DM view → add-resource-btn visible, gear + +/- buttons on each bar, active-modifiers-panel toggle text '2 active', expanded shows modifier-group-str and modifier-group-int with contributing tree·node lines. Add-resource flow end-to-end: opened modal, filled Sand Charges max=5 color=#84CC16, save → bar appears → reload → still present (persistence verified). No console errors during the flow.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "CharacterSheet → ActiveModifiersPanel (DM, /characters/wawa)",
+        "issues": [
+          "Spec example said the bound Wickfire-tree node 'Ember Lash' should contribute +1 STR / -1 WIS. Live data shows the active modifier source as 'Mossblood · Greenwhisper' giving +4 STR / -3 INT. Functionality (tree·node·±value with totals) renders correctly; the spec-narrative example just doesn't match the seeded tree. Worth confirming the intended seed names/values."
+        ]
+      },
+      {
+        "screen": "ActiveModifiersPanel — 'Unlocks at higher levels' section",
+        "issues": [
+          "No pending entries shown for wawa because no live tree binds a level_required>4 modifier to her. The render code is in place (`pending-modifier-<i>` testid found in source) and the supporting backend payload round-trips fine, but no QA can visually confirm the section without seeding such a binding. Recommend adding a permanent seed (e.g., a level-10 node already bound via foundation_unlock) so the pending UI is always demonstrable."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_multi_resources.py",
+    "/app/test_reports/pytest/iter12_multi_resources.xml"
+  ],
+  "action_items": [
+    "(Optional) Re-seed wawa's Wickfire tree → 'Ember Lash' node with modifiers {str:+1, wis:-1} so the docs/spec example matches reality, or update the spec text to reflect the current Mossblood/Greenwhisper seed.",
+    "(Optional) Add a permanent demo gated modifier (foundation_unlock to a level_required=10 node) on wawa so the 'Unlocks at higher levels' section is always visible for product/QA review.",
+    "(Carryover from iter_11) Investigate the small stray '0' rendered under HP/AC/Speed/Init StatBlocks — still visible in this iter's screenshot."
+  ],
+  "critical_code_review_comments": [
+    "server.py PUT /api/pcs: the bug fix correctly switches legacy resource_* keys to 'pop only on explicit empty string' semantics. The matching 5e-fields loop above still uses plain 'if v is not None' merging, which keeps the contract consistent (None = preserve, [] = clear). Document this convention near the loop so a future refactor doesn't reintroduce the regression.",
+    "PlayerCharacterIn.resources is Optional[List[dict]] with no nested model. extras='ignore' is on the outer model, but individual resource dicts are unvalidated — any keys are written straight to Mongo. Acceptable today, but if you add server-side rest math, lock the schema (id:str, name:str, max:int, current:int, color:str#hex).",
+    "metadata cleanup line `{k: v for k, v in metadata.items() if v not in ('', None)}` drops keys whose value is empty list / empty dict only on the create path (POST) but NOT on PUT (PUT line uses `('', None)` only). Mostly OK because resources=[] is unlikely to roundtrip from the UI, but if a user removes the last resource the array will persist as []. Fine for the panel but worth a note.",
+    "ActiveModifiersPanel deep-link to /magic/<slug>?node=<id> depends on tree slug being known at panel-render time. The hookup looks right in code; if a tree is renamed (slug changes), older foundation_unlocks pointing to the old slug would 404 — but they're stored by tree_id not slug, so the navigation will still find it via the API GET. OK.",
+    "EntryDetail.jsx legacy-properties exclusion list has grown again (now includes 'resources'). Iter_11 already flagged this; switching to an allowlist of metadata keys remains the cleaner long-term fix."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_multi_resources.py (new)"
+  ],
+  "success_rate": { "backend": "100% (7/7 new pytests pass)", "frontend": "100% (anon read-only, DM add/edit/persist, modifiers panel render all verified)" },
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1",
+  "seed_data_creation": "Wawa (a6ded32c-bce2-4eaf-bf00-939a5fa345f8) restored at end of run to clean state: resources=[{Mana max10 cur7 #60A5FA}, {Wickfire max3 cur3 #F97316}], foundation_unlocks=[] (dangling refs from test_gated_modifier_node_persists cleaned). Level=4 (carried from the bug-regression PUT in pytest). The 'Sand Charges' bar added via the UI flow was NOT cleaned up — it persists in wawa.metadata.resources alongside Mana and Wickfire. If the screenshot/demo state should be 2 bars exactly, remove Sand Charges manually.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter_12 ships: (a) PlayerCharacterIn.resources Optional[List[dict]]; POST initializes to []; PUT merges via 'if v is not None'. (b) The CRITICAL FIX in server.py PUT /api/pcs is on legacy resource_* fields: they only POP when client sends '' (explicit clear) — None preserves. This is what makes the CharacterBuilder save (level change) no longer wipe Mana. (c) ResourceBar.jsx now multi-row with testids resource-bars, resource-<name-kebab>, resource-<id>-{plus,minus,config}, add-resource-btn, resource-config-overlay, resource-{name,max,color,current}-input, resource-{save,remove}. readResources() back-compat migrates legacy single resource_* into a synthetic [{...}] for display. (d) RestManager applies recovery to ALL resources, per-resource clamp. (e) ActiveModifiersPanel.jsx (NEW) sits between RestManager and StatBlock row on CharacterSheet — toggle ='active-modifiers-toggle', container='active-modifiers-panel', per-stat group='modifier-group-<stat>', pending row='pending-modifier-<i>' (links to /magic/<slug>?node=<id>). (f) EntryDetail legacy-card filter now excludes 'resources' too. Wawa state at handoff: 3 resources (Mana, Wickfire, Sand Charges) — main agent should drop Sand Charges if not desired for the canonical demo state."
+}
