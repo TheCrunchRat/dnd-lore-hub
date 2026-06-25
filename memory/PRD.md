@@ -186,6 +186,11 @@
   - **Frontend Admin panel (`/admin/shop`)**: 3 tabs (Merchants / Items / Requests). Merchant form: name, title, accent color, open toggle, greeting, description, and 4 separate ImageUploader fields (portrait / background / counter / closed art). Item form: merchant select, category enum, rarity enum, price, stock, featured toggle, description, image. Requests tab shows pending list with approve / deny (with reason modal) + collapsible "past decisions" trail. Pending-count badge on the tab.
   - **Character sheet**: gold balance shown as a `Coins` pill under alignment (`data-testid="sheet-gold"`).
   - **Tests**: 21 new pytests in `/app/backend/tests/test_shop.py` cover the full flow (request → duplicate 409 → approve gold-deduct + equipment append → insufficient gold 400 → deny w/ reason → cancel → closed shop 400) + authz. **87/87 backend tests pass.** Frontend e2e via testing agent — 100% on smoke flows (anon view, login + gold strip, item modal, admin tabs, toggle-open round-trip, sheet-gold).
+- **Polish pass (P2/P3 finished)**:
+  - `/app/frontend/src/components/ConfirmDialog.jsx` — themed portal modal that replaces `window.confirm()` for destructive actions. Lantern-card with red border when `destructive=true`, warning triangle icon, themed Cancel + Confirm buttons. Wired into `AdminShop.jsx` for both delete-merchant ("Shutter <Name> for good?") and delete-item ("Take <name> off the counter?") flows. Visually verified — modal renders cleanly over the page with backdrop scrim and stops at Cancel without destructive side effects.
+  - `/app/backend/db/indexes.py` — new `ensure_indexes(db)` function owns every `create_index` call (~25 lines). `server.py` startup hook is now a 3-line block (`ensure_indexes` + 7 seeders + storage init). Adding a new collection's indexes now means touching one file.
+  - `/app/frontend/src/components/magic-tree/SpellFields.jsx` + `ModifiersEditor.jsx` — pulled out of `NodeEditor.jsx` (was 472 lines, now 338). `SpellFields` owns its `SCHOOLS` constant + internal `TinyInput` helper; `ModifiersEditor` owns its `STATS` constant. NodeEditor imports them and is now strictly a coordinator. Lint clean; magic page renders normally post-extraction.
+  - **All 87 pytests still pass.** Server.py is now exactly 99 lines.
 - **Backend modularization (P2)**: `server.py` shrunk from 2204 → 1463 lines (~33% reduction). Extracted:
   - `/app/backend/deps.py` — Mongo client, logger, JWT config, auth helpers (`hash_password`, `verify_password`, token creators, cookie helpers, `get_current_user`, `get_optional_user`), `slugify`, `CATEGORIES`, storage config constants
   - `/app/backend/seeds.py` — all `seed_*` functions (admins, entries, magic trees, rules, default map, guides) and tree-data helpers (`_node`, `_wickfire_nodes`, etc.) + `SEED_ENTRIES` / `SEED_MAGIC_TREES`
@@ -195,9 +200,10 @@
   - `server.py` now imports from these modules and just hosts the remaining route groups (auth, profile, entries, settings, guides, maps, dice, magic, sessions, comments, PCs, equip). Sub-routers are mounted under the same `/api` prefix via `api.include_router(sub)`. 66/66 pytests pass; live `/api/layouts`, `/api/rules/*`, `/api/entries`, `/api/dice/rolls` curls all 200 OK
 
 ## Backlog / Next
-- **P2** Polish: replace `window.confirm()` in `AdminShop.jsx` destructive actions with the app's themed modal pattern for consistency
-- **P2** Continue refactor as the codebase grows — extract `models.py` into per-domain submodules if the file exceeds 250 lines; consider `db/indexes.py` for the index-creation block in `server.py`
-- **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
+- All previously-listed P2/P3 polish items are complete. Open backlog:
+- **P2 (future)** "Sell to merchant" inverse flow — players nominate items from their PC equipment, DM approves a gold credit. Mirrors existing purchase pipeline.
+- **P2 (future)** Per-user layout overrides on top of the realm default (currently `/admin/layouts` is realm-wide). Same backend keyed by user.
+- **P3 (future)** OpenAPI tags per route module — `APIRouter(tags=["Magic"])` etc. — so `/docs` swagger groups endpoints by domain.
 
 ## Test Credentials
 See `/app/memory/test_credentials.md`. DM: `dm@lantern.realm` / `lantern-keeper-1`.

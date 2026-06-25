@@ -4,6 +4,7 @@ import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import ImageUploader from "../components/ImageUploader";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const TABS = [
   { id: "merchants", label: "Merchants" },
@@ -113,6 +114,7 @@ export default function AdminShop() {
 function MerchantsTab({ merchants, reload }) {
   const [editing, setEditing] = useState(null); // merchant id or "new"
   const [form, setForm] = useState(EMPTY_MERCHANT);
+  const [confirm, setConfirm] = useState(null);
 
   const startNew = () => { setForm(EMPTY_MERCHANT); setEditing("new"); };
   const startEdit = (m) => { setForm({ ...EMPTY_MERCHANT, ...m }); setEditing(m.id); };
@@ -140,14 +142,19 @@ function MerchantsTab({ merchants, reload }) {
     } catch (e) { toast.error(formatApiError(e)); }
   };
 
-  const removeMerchant = async (m) => {
-    if (!window.confirm(`Delete "${m.name}" and all their items? This cannot be undone.`)) return;
-    try {
-      await api.delete(`/shop/merchants/${m.id}`);
-      toast.success("Merchant removed");
-      reload();
-    } catch (e) { toast.error(formatApiError(e)); }
-  };
+  const confirmDelete = (m) => setConfirm({
+    title: `Shutter ${m.name} for good?`,
+    body: `This will remove the merchant AND every item on their counter. Pending purchase requests for those items will still be visible in your records.`,
+    confirmLabel: "Delete merchant",
+    onConfirm: async () => {
+      setConfirm(null);
+      try {
+        await api.delete(`/shop/merchants/${m.id}`);
+        toast.success("Merchant removed");
+        reload();
+      } catch (e) { toast.error(formatApiError(e)); }
+    },
+  });
 
   return (
     <div data-testid="merchants-tab">
@@ -184,12 +191,13 @@ function MerchantsTab({ merchants, reload }) {
             <button onClick={() => startEdit(m)} data-testid={`edit-merchant-${m.id}`} className="p-2 text-muted-bone hover:text-lantern" title="Edit">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => removeMerchant(m)} data-testid={`delete-merchant-${m.id}`} className="p-2 text-muted-bone hover:text-red-400" title="Delete">
+            <button onClick={() => confirmDelete(m)} data-testid={`delete-merchant-${m.id}`} className="p-2 text-muted-bone hover:text-red-400" title="Delete">
               <Trash2 className="w-4 h-4" />
             </button>
           </li>
         ))}
       </ul>
+      <ConfirmDialog open={Boolean(confirm)} {...(confirm || {})} onCancel={() => setConfirm(null)} testid="confirm-merchant-delete" />
     </div>
   );
 }
@@ -276,6 +284,7 @@ function FormField({ label, testid, children }) {
 function ItemsTab({ items, merchants, filterMerchant, setFilterMerchant, reload }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_ITEM);
+  const [confirm, setConfirm] = useState(null);
   const visibleItems = filterMerchant ? items.filter((i) => i.merchant_id === filterMerchant) : items;
   const merchantsById = Object.fromEntries(merchants.map((m) => [m.id, m]));
 
@@ -303,14 +312,19 @@ function ItemsTab({ items, merchants, filterMerchant, setFilterMerchant, reload 
     } catch (e) { toast.error(formatApiError(e)); }
   };
 
-  const removeItem = async (it) => {
-    if (!window.confirm(`Delete "${it.name}"?`)) return;
-    try {
-      await api.delete(`/shop/items/${it.id}`);
-      toast.success("Item removed");
-      reload();
-    } catch (e) { toast.error(formatApiError(e)); }
-  };
+  const confirmDelete = (it) => setConfirm({
+    title: `Take "${it.name}" off the counter?`,
+    body: `Pending purchase requests for this item will keep the item snapshot, so already-approved purchases stay intact on the PC sheet.`,
+    confirmLabel: "Delete item",
+    onConfirm: async () => {
+      setConfirm(null);
+      try {
+        await api.delete(`/shop/items/${it.id}`);
+        toast.success("Item removed");
+        reload();
+      } catch (e) { toast.error(formatApiError(e)); }
+    },
+  });
 
   return (
     <div data-testid="items-tab">
@@ -347,7 +361,7 @@ function ItemsTab({ items, merchants, filterMerchant, setFilterMerchant, reload 
             <button onClick={() => startEdit(it)} data-testid={`edit-item-${it.id}`} className="p-2 text-muted-bone hover:text-lantern">
               <Pencil className="w-4 h-4" />
             </button>
-            <button onClick={() => removeItem(it)} data-testid={`delete-item-${it.id}`} className="p-2 text-muted-bone hover:text-red-400">
+            <button onClick={() => confirmDelete(it)} data-testid={`delete-item-${it.id}`} className="p-2 text-muted-bone hover:text-red-400">
               <Trash2 className="w-4 h-4" />
             </button>
           </li>
@@ -356,6 +370,7 @@ function ItemsTab({ items, merchants, filterMerchant, setFilterMerchant, reload 
           <li className="text-center py-12 text-muted-bone">No items yet. Click &ldquo;New item&rdquo; to add one.</li>
         )}
       </ul>
+      <ConfirmDialog open={Boolean(confirm)} {...(confirm || {})} onCancel={() => setConfirm(null)} testid="confirm-item-delete" />
     </div>
   );
 }

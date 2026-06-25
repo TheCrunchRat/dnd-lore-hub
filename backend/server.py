@@ -12,6 +12,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 from deps import client, db, logger, FRONTEND_URL
+from db.indexes import ensure_indexes
 from routes.auth import router as auth_router
 from routes.entries import router as entries_router
 from routes.guides import router as guides_router
@@ -65,29 +66,7 @@ app.add_middleware(
 # ---------------- Startup / Shutdown ----------------
 @app.on_event("startup")
 async def on_startup():
-    await db.users.create_index("email", unique=True)
-    await db.entries.create_index("id", unique=True)
-    await db.entries.create_index("slug", unique=True)
-    await db.entries.create_index("category")
-    await db.dice_rolls.create_index([("created_at", -1)])
-    await db.magic_trees.create_index("id", unique=True)
-    await db.magic_trees.create_index("slug", unique=True)
-    await db.scheduled_sessions.create_index("scheduled_at")
-    await db.session_comments.create_index("id", unique=True)
-    await db.session_comments.create_index([("session_id", 1), ("created_at", 1)])
-    await db.uploads.create_index("id", unique=True)
-    await db.regional_maps.create_index("id", unique=True)
-    await db.regional_maps.create_index("slug", unique=True)
-    await db.guides.create_index("id", unique=True)
-    await db.guides.create_index("slug", unique=True)
-    await db.shop_merchants.create_index("id", unique=True)
-    await db.shop_merchants.create_index("slug", unique=True)
-    await db.shop_items.create_index("id", unique=True)
-    await db.shop_items.create_index("merchant_id")
-    await db.shop_requests.create_index("id", unique=True)
-    await db.shop_requests.create_index([("status", 1), ("created_at", -1)])
-    for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
-        await db[coll].create_index("id", unique=True)
+    await ensure_indexes(db)
     await seed_admins()
     await seed_entries()
     await seed_magic_trees()
