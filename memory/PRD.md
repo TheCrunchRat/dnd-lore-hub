@@ -140,6 +140,13 @@
   - `ActiveModifiersPanel.jsx` (new) — collapsible breakdown between Rest bar and stat row. Lists every active modifier with its source tree·node and ±value, plus an "Unlocks at higher levels" section for level-gated modifiers (each pending row deep-links to `/magic/<slug>?node=<id>` with the pulse)
   - EntryDetail legacy-properties filter extended with `resources`
   - Tests: `/app/backend/tests/test_multi_resources.py` (7 new) — 56/56 pytests pass
+- **Profile ↔ Sheet ↔ Dice integration + 5e Skills + Spell Dice**:
+  - Shared `lib/dice.js` util (rollDie, rollPool, abilityMod, profBonus, postRoll, rollAndPost, SKILLS_5E table). DieRoll wire-format is `{sides, value}` matching the backend
+  - New `SheetRollers.jsx` mounted on the sheet: one-click Ability Check + Save buttons per stat, an Initiative button in the header, and a collapsible 18-row 5e Skill table. Every roll: toasts AND POSTs to the shared `/api/dice/rolls` feed (live on `/dice`)
+  - Backend `PlayerCharacterIn.skill_profs / skill_experts` (string lists); `DiceRollIn` extended with optional `pc_id / pc_name / kind`
+  - Spell dice config (per-spell, 3a): `dice_count`, `dice_size`, `bonus` added to both rules_spells (Compendium SpellEditor + cards) and magic-tree nodes (NodeEditor SpellFields). `/api/spells/library` surfaces them uniformly. `SpellManager` adds a dice-icon "cast" button next to spell pills that have dice configured — rolls and posts to the feed with `kind=spell`
+  - Profile cards split into **Sheet** + **Quick Roll** buttons; Quick Roll → `/dice?character=<id>` renders an Active-PC banner with the embedded `SheetRollers`, plus a clear-X that strips the query param
+  - Tests: `/app/backend/tests/test_dice_pc_integration.py` (5 new) — 61/61 pytests pass
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
