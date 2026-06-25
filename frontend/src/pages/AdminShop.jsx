@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Store, Plus, Pencil, Trash2, Check, X, Hourglass, Coins, Power, Star, ChevronDown, ChevronUp } from "lucide-react";
+import { Store, Plus, Pencil, Trash2, Check, X, Hourglass, Coins, Power, Star, ChevronDown, ChevronUp, HandCoins, ShoppingBag } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
@@ -434,13 +434,21 @@ function RequestsTab({ requests, reload }) {
   const [showDecided, setShowDecided] = useState(false);
   const [denyId, setDenyId] = useState(null);
   const [denyReason, setDenyReason] = useState("");
+  const [sellOverride, setSellOverride] = useState({}); // {req_id: priceStr} — DM-edited final price for sells
   const pending = requests.filter((r) => r.status === "pending");
   const decided = requests.filter((r) => r.status !== "pending");
 
   const approve = async (r) => {
     try {
-      await api.post(`/shop/requests/${r.id}/approve`);
-      toast.success(`Granted: ${r.item_snapshot?.name} → ${r.pc_name}`);
+      const payload = {};
+      if (r.kind === "sell") {
+        const v = sellOverride[r.id];
+        if (v !== undefined && v !== "") payload.final_price_gp = parseInt(v, 10);
+      }
+      await api.post(`/shop/requests/${r.id}/approve`, payload);
+      toast.success(r.kind === "sell"
+        ? `Bought from ${r.pc_name}: ${r.item_snapshot?.name}`
+        : `Granted: ${r.item_snapshot?.name} → ${r.pc_name}`);
       reload();
     } catch (e) { toast.error(formatApiError(e)); }
   };
@@ -463,32 +471,65 @@ function RequestsTab({ requests, reload }) {
         </div>
       ) : (
         <ul className="space-y-3">
-          {pending.map((r) => (
-            <li key={r.id} data-testid={`req-${r.id}`} className="lantern-card vine-frame p-4">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <div className="font-serif-display text-bone text-lg">
-                    {r.item_snapshot?.name}
-                    <span className="ml-2 text-[10px] tracking-widest uppercase text-muted-bone">· {r.merchant_name}</span>
+          {pending.map((r) => {
+            const isSell = r.kind === "sell";
+            const Icon = isSell ? HandCoins : ShoppingBag;
+            return (
+              <li key={r.id} data-testid={`req-${r.id}`} className="lantern-card vine-frame p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`inline-flex items-center gap-1 text-[10px] tracking-[0.3em] uppercase px-2 py-0.5 border ${
+                        isSell ? "border-emerald-500/40 text-emerald-300" : "border-[#FBBF24]/40 text-lantern"
+                      }`} data-testid={`req-kind-${r.id}`}>
+                        <Icon className="w-3 h-3" /> {isSell ? "Sell" : "Buy"}
+                      </span>
+                      <span className="text-[10px] tracking-widest uppercase text-muted-bone">· {r.merchant_name}</span>
+                    </div>
+                    <div className="font-serif-display text-bone text-lg">
+                      {r.item_snapshot?.name}
+                    </div>
+                    <div className="text-sm text-muted-bone mt-1">
+                      <span className="text-bone">{r.user_name}</span>
+                      {r.pc_name && <span> rolling as <span className="text-bone">{r.pc_name}</span></span>}
+                      {isSell ? " — proposes " : " — wants to spend "}
+                      <span className="text-bone inline-flex items-center"><Coins className="w-3 h-3 mx-1 text-lantern" />{r.price_gp} gp</span>
+                    </div>
+                    {r.note && <div className="text-xs italic text-muted-bone mt-2">&ldquo;{r.note}&rdquo;</div>}
+
+                    {isSell && (
+                      <div className="mt-3 flex items-center gap-2 flex-wrap" data-testid={`sell-override-${r.id}`}>
+                        <span className="text-[10px] tracking-widest uppercase text-muted-bone">Haggle to</span>
+                        <div className="flex items-center gap-1">
+                          <Coins className="w-3 h-3 text-lantern" />
+                          <input
+                            type="number"
+                            min={0}
+                            placeholder={String(r.price_gp)}
+                            value={sellOverride[r.id] ?? ""}
+                            onChange={(e) => setSellOverride((m) => ({ ...m, [r.id]: e.target.value }))}
+                            data-testid={`sell-override-input-${r.id}`}
+                            className="w-20 px-2 py-1 bg-[#0B0E0C] border border-rust text-bone text-sm font-mono text-center focus:border-[#FBBF24] focus:outline-none"
+                          />
+                        </div>
+                        <span className="text-[10px] tracking-widest uppercase text-muted-bone">
+                          (blank = accept their {r.price_gp} gp)
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-bone mt-1">
-                    <span className="text-bone">{r.user_name}</span>
-                    {r.pc_name && <span> rolling as <span className="text-bone">{r.pc_name}</span></span>}
-                    {" "}— wants to spend <span className="text-bone inline-flex items-center"><Coins className="w-3 h-3 mx-1 text-lantern" />{r.price_gp} gp</span>
+                  <div className="flex gap-2">
+                    <button onClick={() => approve(r)} data-testid={`approve-${r.id}`} className="inline-flex items-center gap-1 px-3 py-2 bg-[#4A7C59] text-[#0B0E0C] font-semibold hover:bg-[#5C9170]">
+                      <Check className="w-4 h-4" /> Approve
+                    </button>
+                    <button onClick={() => { setDenyId(r.id); setDenyReason(""); }} data-testid={`deny-${r.id}`} className="inline-flex items-center gap-1 px-3 py-2 border border-red-500/40 text-red-300 hover:bg-red-500/10">
+                      <X className="w-4 h-4" /> Deny
+                    </button>
                   </div>
-                  {r.note && <div className="text-xs italic text-muted-bone mt-2">&ldquo;{r.note}&rdquo;</div>}
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => approve(r)} data-testid={`approve-${r.id}`} className="inline-flex items-center gap-1 px-3 py-2 bg-[#4A7C59] text-[#0B0E0C] font-semibold hover:bg-[#5C9170]">
-                    <Check className="w-4 h-4" /> Approve
-                  </button>
-                  <button onClick={() => { setDenyId(r.id); setDenyReason(""); }} data-testid={`deny-${r.id}`} className="inline-flex items-center gap-1 px-3 py-2 border border-red-500/40 text-red-300 hover:bg-red-500/10">
-                    <X className="w-4 h-4" /> Deny
-                  </button>
-                </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -500,12 +541,18 @@ function RequestsTab({ requests, reload }) {
           {showDecided && (
             <ul className="space-y-1 mt-3">
               {decided.map((r) => (
-                <li key={r.id} data-testid={`decided-row-${r.id}`} className="text-xs text-muted-bone flex items-center gap-3">
+                <li key={r.id} data-testid={`decided-row-${r.id}`} className="text-xs text-muted-bone flex items-center gap-3 flex-wrap">
+                  <span className={`uppercase tracking-widest text-[9px] ${r.kind === "sell" ? "text-emerald-300" : "text-lantern"}`}>
+                    {r.kind || "buy"}
+                  </span>
                   <span className={r.status === "approved" ? "text-[#9BBE9F]" : r.status === "denied" ? "text-red-300" : ""}>
                     {r.status}
                   </span>
                   <span className="text-bone">{r.item_snapshot?.name}</span>
-                  <span>→ {r.pc_name || r.user_name}</span>
+                  <span>{r.kind === "sell" ? "from" : "→"} {r.pc_name || r.user_name}</span>
+                  {r.status === "approved" && r.final_price_gp !== null && r.final_price_gp !== undefined && (
+                    <span className="text-[#9BBE9F]">· {r.final_price_gp} gp</span>
+                  )}
                   {r.reason && <span className="italic">&ldquo;{r.reason}&rdquo;</span>}
                 </li>
               ))}

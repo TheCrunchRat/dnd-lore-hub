@@ -1,0 +1,35 @@
+{
+  "summary": "Verified the new Sell-to-merchant flow + Dice-page sheet-roll animation feature end-to-end. Backend: created /app/backend/tests/test_shop_sell.py (12 tests) covering sell creation, ownership/auth gating, duplicate 409, closed-merchant 400, item-not-in-equipment 400, list-requests `kind`+`final_price_gp` fields, approve with override (gold credited, one instance of duplicate item removed), approve without override (uses proposed price), approve fails when item already gone (400), purchase final_price_gp echoes price, deny/cancel still work for sell rows. 12/12 PASS. Combined with existing test_shop.py: 33/33 PASS. Frontend Shop: 'Sell to {merchant}' button visible in DM status strip, sell-modal opens with equipment dropdown / price / note / submit; submit posts to /api/shop/sell-requests and pending strip shows the 'Sell' chip (verified visually + DOM). Frontend AdminShop Requests tab: pending sell row shows kind chip 'Sell' (req-kind-{id}) and a 'Haggle to' input (sell-override-input-{id}); approve with override=33 → wawa gold went 175→208, 'Iron Dagger' removed (one instance), toast 'Bought from wawa: Iron Dagger' fired; non-sell rows do NOT expose the override input (verified — only 1 input across 2 pending rows). Frontend Dice page: posting a sheet roll via /api/dice/rolls (player_name+pc_id matched) caused dice-display to update within ~3s with the spinning then settled value (roll-label='Ability — STR', roll-total=18, dice rendered with mod+3), and the live feed (dice-feed) shows the roll; quick-d20 still rolls and animates exactly once (total=8 observed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_shop_sell.py",
+    "/app/test_reports/pytest/iter17_shop_sell.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/app/backend/routes/shop.py:424 — On approve with kind=='sell', `final_price_gp` is taken from body or falls back to req.price_gp; that's correct. However `body.final_price_gp` is bound only if FastAPI parsed the JSON body; pass-through without body uses None branch (tested OK).",
+    "/app/backend/routes/shop.py:428 — `equipment.remove(item_name)` removes a single occurrence (verified: wawa had 2x 'Iron Dagger' → after sell, 1 remains via pytest, then 0 via UI test). Good behavior for duplicates.",
+    "/app/backend/routes/shop.py:336 — `request_sell` checks merchant.is_open BUT NOT stock/inventory of pc beyond name match. Edge case: PCs can spam sell-requests if they don't approve. Mitigated by the duplicate-pending check at line 353.",
+    "/app/backend/routes/shop.py:455 — `final_price_gp` only set on approve; deny/cancel leave it unset (None). request_out exposes it as None on those rows which is fine.",
+    "/app/frontend/src/pages/Dice.jsx — seenRollIds dedup logic works. Confirmed: sheet roll posted externally animated on /dice within ~3s and quick d20 still triggered exactly one animation. Polling interval is 2s — minor: a player viewing /dice will see up to 2s lag, which matches the agent_to_agent note.",
+    "/app/frontend/src/pages/AdminShop.jsx:511 — sell-override-input is type-coerced to int; empty string falls through to backend proposed_price. Verified empty-override path via pytest."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_shop_sell.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 new sell tests, 33/33 full shop suite)",
+    "frontend": "100% on tested flows (sell modal submit + pending strip, admin haggle/approve + gold/equipment update, dice sheet-roll animation, quick-d20 regression)"
+  },
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1 — login OK, httpOnly cookies set (access_token + refresh_token).",
+  "seed_data_creation": "wawa restored to: gold_gp=150, equipment=['Iron Dagger','Healing Tonic']. Cleaned up TEST_Cancel/TEST_Closed/TEST_Deny shop items left over from prior runs. All TEST_ prefixed sell-request rows are in 'decided history' (approved/cancelled/denied); they're harmless but main agent may sweep them if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Sell flow: POST /api/shop/sell-requests with {pc_id, merchant_id, item_name, proposed_price_gp, note}; approve with optional {final_price_gp} body. /api/shop/requests now returns `kind` (purchase|sell, defaults purchase for legacy rows) and `final_price_gp` (set on approve). For Dice animation testing, the active PC must be set (DM auto-equips via /api/me/active-pc → wawa). When posting a sheet roll via /api/dice/rolls, the Dice page polls every 2s — wait ~3s for the replay animation. wawa pc_id=a6ded32c-bce2-4eaf-bf00-939a5fa345f8 if needed for direct API tests.",
+  "rca of the issue": "No issues found. Both features (sell-to-merchant + sheet-roll dice animation) are fully functional across backend + frontend. Backend cleanly branches kind=='sell' vs 'purchase' in /shop/requests/{id}/approve, properly removes one instance of duplicate equipment, credits gold, and supports DM override pricing. Frontend wires the modal, kind chip, override input, and dice-display replay correctly."
+}

@@ -37,6 +37,11 @@ export default function Dice() {
   const [modifier, setModifier] = useState(0);
   const [feed, setFeed] = useState([]); // shared roll feed (chronological asc, newest at end)
   const lastTsRef = useRef(null);
+  // IDs we've already shown locally (either we rolled them ourselves, or we
+  // already played their animation when they arrived via the feed). Used to
+  // pick up sheet-rolls posted by SheetRollers and replay them on the dice
+  // display, without re-animating our own builder/quick rolls twice.
+  const seenRollIds = useRef(new Set());
 
   const { layout } = useRealmLayout();
   const feedLimit = blockConfig(layout, "dice_page", "live_feed", { limit: 50 }).limit;
@@ -81,6 +86,9 @@ export default function Dice() {
       if (initial) {
         const { data } = await api.get("/dice/rolls", { params: { limit: feedLimit } });
         setFeed(data);
+        // Seed seenRollIds with everything on initial load so we don't replay
+        // historical rolls as animations when the page mounts.
+        data.forEach((r) => seenRollIds.current.add(r.id));
         if (data.length > 0) lastTsRef.current = data[data.length - 1].created_at;
       } else {
         const { data } = await api.get("/dice/rolls", {
@@ -94,10 +102,23 @@ export default function Dice() {
             return merged.slice(-Math.max(feedLimit, 100));
           });
           lastTsRef.current = data[data.length - 1].created_at;
+          // Any new roll authored by THIS player that we haven't shown locally
+          // (e.g. a SheetRollers ability/save/skill roll, or a roll from
+          // another tab) → replay it in the dice display. Match by name OR
+          // by active PC so name-mismatches between sheet (uses pc.owner) and
+          // dice page (uses localStorage) still trigger the animation.
+          for (const r of data) {
+            if (seenRollIds.current.has(r.id)) continue;
+            seenRollIds.current.add(r.id);
+            const mine = r.player_name === playerName || (pcEntry && r.pc_id === pcEntry.id);
+            if (mine) {
+              playAnimation(r);
+            }
+          }
         }
       }
     } catch (_e) { /* ignore polling errors */ }
-  }, [feedLimit]);
+  }, [feedLimit, playerName, pcEntry]);
 
   useEffect(() => {
     fetchFeed(true);
@@ -118,6 +139,35 @@ export default function Dice() {
   };
 
   const quickRoll = (sides) => performRoll({ [sides]: 1 }, 0);
+
+  /**
+   * Replay a settled roll on the big dice display — used for incoming
+   * sheet-rolls from the live feed. Briefly cycles fake values for visual
+   * spin, then settles on the real `total/rolls`.
+   */
+  const playAnimation = (roll) => {
+    if (rolling) return; // skip while a local roll is mid-animation
+    setRolling(true);
+    let ticks = 0;
+    const intv = setInterval(() => {
+      const tempRolls = roll.rolls.map((r) => ({ sides: r.sides, value: rollDie(r.sides) }));
+      setCurrentRoll({ rolls: tempRolls, label: roll.label, modifier: roll.modifier || 0, total: 0, settled: false });
+      ticks += 1;
+      if (ticks >= 8) {
+        clearInterval(intv);
+        setCurrentRoll({
+          rolls: roll.rolls,
+          label: roll.label,
+          modifier: roll.modifier || 0,
+          total: roll.total,
+          crit: roll.crit,
+          fumble: roll.fumble,
+          settled: true,
+        });
+        setRolling(false);
+      }
+    }, 60);
+  };
 
   const performRoll = (diceMap, mod) => {
     if (!playerName) {
@@ -159,9 +209,9 @@ export default function Dice() {
         setCurrentRoll({ ...payload, settled: true });
         setRolling(false);
 
-        api.post("/dice/rolls", payload).catch((e) => {
-          toast.error(formatApiError(e));
-        });
+        api.post("/dice/rolls", payload)
+          .then((r) => { if (r?.data?.id) seenRollIds.current.add(r.data.id); })
+          .catch((e) => { toast.error(formatApiError(e)); });
       }
     }, 60);
   };

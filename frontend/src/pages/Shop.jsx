@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { Coins, Lock, Store, X, Hourglass, Check, AlertCircle, Sparkles, Sword, Shield, Package, FlaskRound, Gem, Wrench } from "lucide-react";
+import { Coins, Lock, Store, X, Hourglass, Check, AlertCircle, Sparkles, Sword, Shield, Package, FlaskRound, Gem, Wrench, HandCoins } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
@@ -31,6 +31,7 @@ export default function Shop() {
   const [pc, setPc] = useState(null);
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null); // item to inspect
+  const [sellOpen, setSellOpen] = useState(false); // sell-to-merchant modal
   const [submitting, setSubmitting] = useState(false);
   const [note, setNote] = useState("");
 
@@ -165,6 +166,16 @@ export default function Shop() {
                 Claim a character to shop
               </Link>
             )}
+            {pc && active?.is_open && (pc.metadata?.equipment?.length > 0) && (
+              <button
+                onClick={() => setSellOpen(true)}
+                data-testid="open-sell-modal"
+                className="inline-flex items-center gap-1.5 px-3 py-2 border border-rust text-bone hover:border-[#FBBF24]/60 hover:text-lantern text-[10px] tracking-widest uppercase"
+                title={`Sell something to ${active.name}`}
+              >
+                <HandCoins className="w-3.5 h-3.5" /> Sell to {active.name}
+              </button>
+            )}
             {user.role === "admin" && (
               <Link to="/admin/shop" data-testid="admin-shop-link" className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-lantern">
                 Manage shop ↗
@@ -184,9 +195,10 @@ export default function Shop() {
             {myPending.map((r) => (
               <li key={r.id} data-testid={`my-pending-${r.id}`} className="flex items-center justify-between gap-3 text-sm">
                 <div className="text-bone truncate">
+                  <span className="text-[9px] tracking-widest uppercase text-lantern mr-2">{r.kind === "sell" ? "Sell" : "Buy"}</span>
                   <span className="font-serif-display">{r.item_snapshot?.name}</span>
                   <span className="text-muted-bone text-xs ml-2">· {r.merchant_name} · {r.price_gp} gp</span>
-                  {r.pc_name && <span className="text-muted-bone text-xs ml-1">→ {r.pc_name}</span>}
+                  {r.pc_name && <span className="text-muted-bone text-xs ml-1">{r.kind === "sell" ? "from" : "→"} {r.pc_name}</span>}
                 </div>
                 <button onClick={() => cancelRequest(r.id)} data-testid={`cancel-${r.id}`} className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-red-400">
                   Withdraw
@@ -263,6 +275,100 @@ export default function Shop() {
           alreadyRequested={Boolean(itemRequestStatus(selected.id))}
         />
       )}
+
+      {/* Sell-to-merchant modal */}
+      {sellOpen && (
+        <SellModal
+          merchant={active}
+          pc={pc}
+          gold={gold}
+          onClose={() => setSellOpen(false)}
+          onSubmitted={() => { setSellOpen(false); loadRequests(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SellModal({ merchant, pc, gold, onClose, onSubmitted }) {
+  const equipment = pc?.metadata?.equipment || [];
+  const [item, setItem] = useState(equipment[0] || "");
+  const [price, setPrice] = useState(5);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const accent = merchant.accent_color || "#FBBF24";
+
+  const submit = async () => {
+    if (!item) { toast.error("Pick something to sell"); return; }
+    if (price < 0) { toast.error("Price can't be negative"); return; }
+    setBusy(true);
+    try {
+      await api.post("/shop/sell-requests", {
+        pc_id: pc.id,
+        merchant_id: merchant.id,
+        item_name: item,
+        proposed_price_gp: Number(price),
+        note: note.trim(),
+      });
+      toast.success("Sell request sent to the Lanternkeeper");
+      onSubmitted();
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#0B0E0C]/85 flex items-center justify-center p-4" onClick={onClose} data-testid="sell-modal">
+      <div onClick={(e) => e.stopPropagation()} className="lantern-card vine-frame max-w-lg w-full p-6 relative" style={{ borderColor: `${accent}77` }}>
+        <button onClick={onClose} data-testid="sell-modal-close" className="absolute top-3 right-3 p-1 text-muted-bone hover:text-bone">
+          <X className="w-4 h-4" />
+        </button>
+        <div className="flex items-center gap-2 mb-3">
+          <HandCoins className="w-5 h-5" style={{ color: accent }} />
+          <div className="text-[10px] tracking-[0.3em] uppercase" style={{ color: accent }}>Sell to {merchant.name}</div>
+        </div>
+        <h3 className="font-serif-display text-2xl text-bone leading-tight mb-4">Offer something from your pack</h3>
+
+        {equipment.length === 0 ? (
+          <p className="text-sm text-muted-bone italic">{pc.title} isn&rsquo;t carrying anything to sell yet.</p>
+        ) : (
+          <>
+            <div className="mb-3">
+              <div className="text-[10px] tracking-widest uppercase text-muted-bone mb-1">Item</div>
+              <select value={item} onChange={(e) => setItem(e.target.value)} data-testid="sell-item-select"
+                className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone text-sm focus:border-[#FBBF24] focus:outline-none">
+                {equipment.map((eq, i) => <option key={`${eq}-${i}`} value={eq}>{eq}</option>)}
+              </select>
+            </div>
+
+            <div className="mb-3">
+              <div className="text-[10px] tracking-widest uppercase text-muted-bone mb-1">Your asking price (gp)</div>
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-lantern" />
+                <input type="number" min={0} value={price} onChange={(e) => setPrice(parseInt(e.target.value || "0", 10))}
+                  data-testid="sell-price-input"
+                  className="w-32 px-3 py-2 bg-[#0B0E0C] border border-rust text-bone font-serif-display text-lg focus:border-[#FBBF24] focus:outline-none" />
+                <span className="text-xs text-muted-bone italic">— the Keeper may haggle on approval</span>
+              </div>
+            </div>
+
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
+              placeholder="Optional note — 'salvaged from a bog-stalker', 'family heirloom, sentimental price'…"
+              data-testid="sell-note"
+              className="w-full px-3 py-2 bg-[#0B0E0C] border border-rust text-bone text-sm focus:border-[#FBBF24] focus:outline-none mb-4" />
+
+            <div className="text-xs text-muted-bone mb-3">
+              {pc.title} currently has <span className="text-bone font-serif-display">{gold} gp</span>.
+              On approval they&rsquo;ll be credited the Keeper&rsquo;s final price and the item will leave their pack.
+            </div>
+
+            <button onClick={submit} disabled={busy || !item}
+              data-testid="sell-submit"
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-[#FBBF24] text-[#0B0E0C] font-semibold tracking-wide hover:bg-[#F59E0B] disabled:opacity-50 disabled:cursor-not-allowed">
+              <Hourglass className="w-4 h-4" /> {busy ? "Sending…" : `Send offer · ${price} gp`}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

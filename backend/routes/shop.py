@@ -53,9 +53,21 @@ class PurchaseRequestIn(BaseModel):
     note: Optional[str] = ""
 
 
+class SellRequestIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    pc_id: str
+    merchant_id: str
+    item_name: str = Field(min_length=1, max_length=200)
+    description: Optional[str] = ""
+    proposed_price_gp: int = Field(ge=0)
+    note: Optional[str] = ""
+
+
 class RequestDecisionIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
     reason: Optional[str] = ""
+    # Sell-only: DM can override the player's proposed price on approve
+    final_price_gp: Optional[int] = None
 
 
 class GoldAdjustIn(BaseModel):
@@ -107,6 +119,7 @@ def item_out(d: dict) -> dict:
 def request_out(d: dict) -> dict:
     return {
         "id": d["id"],
+        "kind": d.get("kind", "purchase"),
         "status": d.get("status", "pending"),
         "item_id": d.get("item_id"),
         "item_snapshot": d.get("item_snapshot", {}),
@@ -117,6 +130,7 @@ def request_out(d: dict) -> dict:
         "pc_id": d.get("pc_id"),
         "pc_name": d.get("pc_name", ""),
         "price_gp": d.get("price_gp", 0),
+        "final_price_gp": d.get("final_price_gp"),
         "note": d.get("note", ""),
         "reason": d.get("reason", ""),
         "created_at": d.get("created_at"),
@@ -298,6 +312,7 @@ async def request_purchase(item_id: str, body: PurchaseRequestIn, user: dict = D
     now = datetime.now(timezone.utc).isoformat()
     doc = {
         "id": str(uuid.uuid4()),
+        "kind": "purchase",
         "status": "pending",
         "item_id": item_id,
         "item_snapshot": item,
@@ -308,6 +323,57 @@ async def request_purchase(item_id: str, body: PurchaseRequestIn, user: dict = D
         "pc_id": body.pc_id,
         "pc_name": pc.get("title", ""),
         "price_gp": item.get("price_gp", 0),
+        "note": (body.note or "").strip(),
+        "reason": "",
+        "created_at": now,
+        "decided_at": None,
+    }
+    await db.shop_requests.insert_one(doc)
+    return request_out(doc)
+
+
+@router.post("/shop/sell-requests")
+async def request_sell(body: SellRequestIn, user: dict = Depends(get_current_user)):
+    merchant = await db.shop_merchants.find_one({"id": body.merchant_id}, {"_id": 0})
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+    if not merchant.get("is_open", True):
+        raise HTTPException(status_code=400, detail="Shop is closed")
+    pc = await db.entries.find_one({"id": body.pc_id, "category": "character"})
+    if not pc:
+        raise HTTPException(status_code=404, detail="Character not found")
+    pc_meta = pc.get("metadata") or {}
+    if pc_meta.get("user_id") and pc_meta["user_id"] != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="That character is not yours")
+    equipment = list(pc_meta.get("equipment") or [])
+    item_name = body.item_name.strip()
+    if item_name not in equipment:
+        raise HTTPException(status_code=400, detail=f"{pc['title']} is not carrying \"{item_name}\"")
+    # Block duplicate pending sell for same item + PC + merchant
+    dup = await db.shop_requests.find_one({
+        "kind": "sell", "pc_id": body.pc_id, "merchant_id": body.merchant_id,
+        "item_snapshot.name": item_name, "status": "pending",
+    })
+    if dup:
+        raise HTTPException(status_code=409, detail="A pending sell request for this item already exists")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "kind": "sell",
+        "status": "pending",
+        "item_id": None,
+        "item_snapshot": {
+            "name": item_name,
+            "description": (body.description or "").strip(),
+            "source": "pc-equipment",
+        },
+        "merchant_id": merchant["id"],
+        "merchant_name": merchant.get("name", ""),
+        "user_id": user["id"],
+        "user_name": user.get("name", ""),
+        "pc_id": body.pc_id,
+        "pc_name": pc.get("title", ""),
+        "price_gp": int(body.proposed_price_gp),
         "note": (body.note or "").strip(),
         "reason": "",
         "created_at": now,
@@ -331,7 +397,7 @@ async def list_requests(status: Optional[str] = None, user: dict = Depends(get_c
 
 
 @router.post("/shop/requests/{req_id}/approve")
-async def approve_request(req_id: str, user: dict = Depends(get_current_user)):
+async def approve_request(req_id: str, body: Optional[RequestDecisionIn] = None, user: dict = Depends(get_current_user)):
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
     req = await db.shop_requests.find_one({"id": req_id})
@@ -343,30 +409,49 @@ async def approve_request(req_id: str, user: dict = Depends(get_current_user)):
     if not pc:
         raise HTTPException(status_code=404, detail="Character no longer exists")
     snap = req.get("item_snapshot") or {}
-    price = int(req.get("price_gp", 0))
+    kind = req.get("kind", "purchase")
     meta = pc.get("metadata") or {}
     gold = int(meta.get("gold_gp", 0))
-    if gold < price:
-        raise HTTPException(status_code=400, detail=f"{pc['title']} has {gold} gp but the item costs {price} gp")
-    # Deduct gold + append item name to equipment
     equipment = list(meta.get("equipment") or [])
-    equipment.append(snap.get("name", "Mysterious purchase"))
-    meta["equipment"] = equipment
-    meta["gold_gp"] = gold - price
+    item_name = snap.get("name", "Mysterious item")
+    final_price = None
+
+    if kind == "sell":
+        # Player sells an item → DM credits gold, item leaves equipment
+        if item_name not in equipment:
+            raise HTTPException(status_code=400, detail=f"{pc['title']} no longer carries \"{item_name}\"")
+        # DM may override the proposed price on approve
+        final_price = (body.final_price_gp if body and body.final_price_gp is not None
+                       else int(req.get("price_gp", 0)))
+        if final_price < 0:
+            raise HTTPException(status_code=400, detail="Price cannot be negative")
+        equipment.remove(item_name)
+        meta["equipment"] = equipment
+        meta["gold_gp"] = gold + final_price
+    else:
+        # Purchase: deduct gold, append item
+        price = int(req.get("price_gp", 0))
+        if gold < price:
+            raise HTTPException(status_code=400, detail=f"{pc['title']} has {gold} gp but the item costs {price} gp")
+        final_price = price
+        equipment.append(item_name)
+        meta["equipment"] = equipment
+        meta["gold_gp"] = gold - price
+        # Decrement stock if tracked
+        if snap.get("stock") is not None:
+            await db.shop_items.update_one(
+                {"id": req["item_id"], "stock": {"$gt": 0}},
+                {"$inc": {"stock": -1}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
+            )
+
     await db.entries.update_one(
         {"id": pc["id"]},
         {"$set": {"metadata": meta, "updated_at": datetime.now(timezone.utc).isoformat()}},
     )
-    # Decrement stock if tracked
-    if snap.get("stock") is not None:
-        await db.shop_items.update_one(
-            {"id": req["item_id"], "stock": {"$gt": 0}},
-            {"$inc": {"stock": -1}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}},
-        )
     now = datetime.now(timezone.utc).isoformat()
     await db.shop_requests.update_one(
         {"id": req_id},
-        {"$set": {"status": "approved", "decided_at": now, "reason": ""}},
+        {"$set": {"status": "approved", "decided_at": now, "reason": "", "final_price_gp": final_price}},
     )
     updated = await db.shop_requests.find_one({"id": req_id}, {"_id": 0})
     return request_out(updated)
