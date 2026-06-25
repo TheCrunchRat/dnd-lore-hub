@@ -8,6 +8,8 @@ import RestManager from "./RestManager";
 import CharacterTreeSections from "./CharacterTreeSections";
 import ActiveModifiersPanel from "./ActiveModifiersPanel";
 import SheetRollers from "./SheetRollers";
+import LiveRollFeed from "./LiveRollFeed";
+import ImageUploader from "./ImageUploader";
 
 const ABILITIES = [
   { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
@@ -57,10 +59,27 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
 
   return (
     <div className="mb-10" data-testid="character-sheet">
+      {/* Sheet frame with portrait + lantern-gilded border */}
+      <div className="lantern-card vine-frame p-4 sm:p-6 mb-6" style={{ borderColor: "#FBBF2455" }} data-testid="character-portrait-frame">
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          <CharacterPortrait entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] tracking-[0.3em] uppercase text-lantern">
+              {m.race || m.class ? `${m.race || ""}${m.race && m.class ? " · " : ""}${m.class || ""}` : "Player Character"}
+              {m.level ? ` · Level ${m.level}` : ""}
+            </div>
+            <h2 className="font-serif-display text-3xl sm:text-4xl text-bone leading-tight mt-1">{entry.title}</h2>
+            {entry.subtitle && <div className="text-sm text-muted-bone italic mt-1">{entry.subtitle}</div>}
+            {m.alignment && <div className="text-[10px] tracking-widest uppercase text-muted-bone mt-2">{m.alignment}</div>}
+          </div>
+        </div>
+      </div>
+
       <ResourceBar entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <RestManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <ActiveModifiersPanel entry={entry} trees={trees} />
       <SheetRollers entry={entry} modTotals={modTotals} />
+      <LiveRollFeed limit={8} />
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         <StatBlock icon={Heart} label="HP" value={`${curHp ?? "—"} / ${maxHp ?? "—"}`} mod={modTotals.hp} sources={byStat.hp} />
         <StatBlock icon={Shield} label="AC" value={ac ?? "—"} mod={modTotals.ac} sources={byStat.ac} />
@@ -190,3 +209,62 @@ function StatBlock({ icon: Icon, label, value, mod, sources }) {
     </div>
   );
 }
+
+function CharacterPortrait({ entry, canEdit, onUpdated }) {
+  const m = entry?.metadata || {};
+  const portrait = m.portrait_url || entry.image_url || "";
+  const [uploading, setUploading] = useState(false);
+
+  const persist = async (newPortrait) => {
+    setUploading(true);
+    try {
+      const payload = {
+        name: entry.title,
+        player_name: m.owner || m.player_name || entry.title,
+        ...m,
+        portrait_url: newPortrait,
+      };
+      const { data } = await api.put(`/pcs/${entry.id}`, payload);
+      onUpdated?.(data);
+    } finally { setUploading(false); }
+  };
+
+  return (
+    <div className="shrink-0 relative" data-testid="character-portrait">
+      <div
+        className="w-32 h-32 sm:w-40 sm:h-40 border-2 border-[#FBBF24]/40 overflow-hidden flex items-center justify-center bg-[#0B0E0C]"
+        style={{ boxShadow: "0 0 24px rgba(251, 191, 36, 0.10), inset 0 0 0 4px rgba(251,191,36,0.08)" }}
+      >
+        {portrait ? (
+          <img src={portrait} alt={entry.title} className="w-full h-full object-cover" />
+        ) : (
+          <div className="text-center px-2">
+            <div className="text-3xl font-serif-display text-muted-bone">{(entry.title || "?").slice(0, 1).toUpperCase()}</div>
+            <div className="text-[9px] tracking-widest uppercase text-muted-bone mt-1">No portrait</div>
+          </div>
+        )}
+      </div>
+      {canEdit && (
+        <div className="mt-2 flex flex-col gap-1">
+          <ImageUploader
+            value=""
+            onUploaded={(url) => persist(url)}
+            compact
+            testid="upload-portrait"
+          />
+          {portrait && (
+            <button
+              onClick={() => persist("")}
+              data-testid="clear-portrait"
+              disabled={uploading}
+              className="text-[9px] tracking-widest uppercase text-muted-bone hover:text-red-400 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+

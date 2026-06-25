@@ -147,6 +147,15 @@
   - Spell dice config (per-spell, 3a): `dice_count`, `dice_size`, `bonus` added to both rules_spells (Compendium SpellEditor + cards) and magic-tree nodes (NodeEditor SpellFields). `/api/spells/library` surfaces them uniformly. `SpellManager` adds a dice-icon "cast" button next to spell pills that have dice configured — rolls and posts to the feed with `kind=spell`
   - Profile cards split into **Sheet** + **Quick Roll** buttons; Quick Roll → `/dice?character=<id>` renders an Active-PC banner with the embedded `SheetRollers`, plus a clear-X that strips the query param
   - Tests: `/app/backend/tests/test_dice_pc_integration.py` (5 new) — 61/61 pytests pass
+- **Equip flow + Sheet polish + Live feed everywhere**:
+  - **Equip / Claim**: new `POST /api/pcs/{id}/equip` (claims if unowned, sets as active), `POST /api/pcs/unequip`, `GET /api/me/active-pc`. `User.active_pc_id` persisted; surfaced in `profile_to_out`. Non-admin attempting to equip a PC owned by someone else → 403 (verified via curl)
+  - **EquipBanner** on every PC detail page: anonymous variant nudges sign-in; signed-in shows Equip / Claim & Equip / Unequip with state-aware copy and toasts
+  - **Profile** marks the equipped PC with a `✦ Equipped` badge + gold border/glow
+  - **`/dice` auto-loads the equipped PC** when there's no `?character=` query; the close-X smartly strips the query OR unequips depending on origin
+  - **`LiveRollFeed` widget** (new) — polling roll feed embedded on the character sheet so players see party rolls without leaving the page. Color-coded per kind (ability/save/skill/init/spell), with crit / fumble accents
+  - **CharacterPortrait** slot at the top of the sheet — `metadata.portrait_url`, drag-and-drop upload via existing ImageUploader, single-letter placeholder, Remove button. Wrapped in a `lantern-card vine-frame` with gold border/glow
+  - **ResourceBar** "Add resource" button reduced to a small inline pill (border-rust/60, single Plus icon + 'Add')
+  - Backend regression: 61/61 pytests still green
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)

@@ -155,6 +155,7 @@ class ProfileIn(BaseModel):
     quote: Optional[str] = None
     title: Optional[str] = None
     pronouns: Optional[str] = None
+    active_pc_id: Optional[str] = None  # currently-equipped character id
 
 
 class LoginIn(BaseModel):
@@ -283,6 +284,7 @@ def profile_to_out(user_doc: dict, include_email: bool = False) -> dict:
         "quote": user_doc.get("quote", ""),
         "title": user_doc.get("title", ""),
         "pronouns": user_doc.get("pronouns", ""),
+        "active_pc_id": user_doc.get("active_pc_id", ""),
         "created_at": user_doc.get("created_at"),
     }
     if include_email:
@@ -1427,6 +1429,58 @@ async def my_pcs(user: dict = Depends(get_current_user)):
     ).sort("updated_at", -1)
     items = await cursor.to_list(length=100)
     return [entry_to_out(d) for d in items]
+
+
+@api.get("/me/active-pc")
+async def my_active_pc(user: dict = Depends(get_current_user)):
+    """Return the user's currently-equipped character (or null)."""
+    doc = await db.users.find_one({"_id": ObjectId(user["id"])}, {"active_pc_id": 1})
+    pc_id = (doc or {}).get("active_pc_id")
+    if not pc_id:
+        return None
+    entry = await db.entries.find_one({"id": pc_id, "category": "character"}, {"_id": 0})
+    return entry_to_out(entry) if entry else None
+
+
+@api.post("/pcs/{entry_id}/equip")
+async def equip_pc(entry_id: str, user: dict = Depends(get_current_user)):
+    """Claim a PC as yours (if unowned) and set it as your active character.
+    Admins can claim/equip any PC. Players can only equip PCs that are
+    unowned or already theirs."""
+    entry = await db.entries.find_one({"id": entry_id, "category": "character"})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Character not found")
+    metadata = entry.get("metadata") or {}
+    if metadata.get("role") != "PC":
+        raise HTTPException(status_code=400, detail="Only Player Characters can be equipped")
+    existing_owner = metadata.get("user_id") or ""
+    if existing_owner and existing_owner != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="This character is already claimed by another player")
+    # Stake the claim if unowned (or admin force-claiming)
+    metadata["user_id"] = user["id"]
+    if not metadata.get("owner"):
+        metadata["owner"] = user["name"]
+    await db.entries.update_one(
+        {"id": entry_id},
+        {"$set": {"metadata": metadata, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    # Set as active on the user doc
+    await db.users.update_one(
+        {"_id": ObjectId(user["id"])},
+        {"$set": {"active_pc_id": entry_id, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    updated = await db.entries.find_one({"id": entry_id}, {"_id": 0})
+    return {"ok": True, "entry": entry_to_out(updated)}
+
+
+@api.post("/pcs/unequip")
+async def unequip_pc(user: dict = Depends(get_current_user)):
+    """Clear the user's active character (does NOT release ownership)."""
+    await db.users.update_one(
+        {"_id": ObjectId(user["id"])},
+        {"$set": {"active_pc_id": "", "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"ok": True}
 
 
 # ---------------- D&D 5e Rules Library ----------------

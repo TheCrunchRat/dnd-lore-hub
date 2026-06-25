@@ -182,8 +182,15 @@ export default function Profile() {
           </p>
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {characters.map((c) => (
-              <li key={c.id} className="lantern-card group p-4 hover:border-[#FBBF24]/40 transition-colors">
+            {characters.map((c) => {
+              const isActive = isOwn && data?.profile?.active_pc_id === c.id;
+              return (
+              <li key={c.id} className={`lantern-card group p-4 hover:border-[#FBBF24]/40 transition-colors ${isActive ? "border-[#FBBF24]" : ""}`} style={isActive ? { boxShadow: "0 0 18px rgba(251,191,36,0.18)" } : {}} data-testid={`char-card-${c.slug}`}>
+                {isActive && (
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-2 inline-flex items-center gap-1" data-testid={`active-badge-${c.slug}`}>
+                    ✦ Equipped
+                  </div>
+                )}
                 <Link
                   to={`/characters/${c.slug}`}
                   data-testid={`char-link-${c.slug}`}
@@ -215,7 +222,8 @@ export default function Profile() {
                   </Link>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

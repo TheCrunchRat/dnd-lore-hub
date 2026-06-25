@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import api, { CATEGORIES, formatApiError } from "../lib/api";
-import { ArrowLeft, Calendar, Pencil, Trash2, Lock } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Trash2, Lock, Sparkles } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import PCEditor from "../components/PCEditor";
 import CharacterBuilder from "../components/CharacterBuilder";
@@ -225,7 +225,7 @@ export default function EntryDetail() {
         {entry.metadata && Object.keys(entry.metadata).length > 0 && (
           <div className="lantern-card p-6 mb-10 grid grid-cols-2 sm:grid-cols-3 gap-4">
             {Object.entries(entry.metadata)
-              .filter(([k]) => !["ability_scores","max_hp","current_hp","armor_class","speed","proficiencies","saving_throws","languages","spells_known","spells_prepared","spell_slots","spell_slots_used","equipment","features","user_id","race_id","class_id","resource_name","resource_max","resource_current","resource_color","resources","origin_unlocks","foundation_unlocks","class_tree_id","rest_config"].includes(k))
+              .filter(([k]) => !["ability_scores","max_hp","current_hp","armor_class","speed","proficiencies","saving_throws","languages","spells_known","spells_prepared","spell_slots","spell_slots_used","equipment","features","user_id","race_id","class_id","resource_name","resource_max","resource_current","resource_color","resources","origin_unlocks","foundation_unlocks","class_tree_id","rest_config","skill_profs","skill_experts","portrait_url"].includes(k))
               .map(([k, v]) => (
                 <div key={k}>
                   <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1">{k.replace(/_/g, " ")}</div>
@@ -233,6 +233,10 @@ export default function EntryDetail() {
                 </div>
               ))}
           </div>
+        )}
+
+        {isPC && (
+          <EquipBanner entry={entry} user={user} onUpdated={(updated) => setEntry(updated)} />
         )}
 
         {isPC && <CharacterSheet entry={entry} canEdit={canEdit} onUpdated={(updated) => setEntry(updated)} />}
@@ -273,3 +277,93 @@ export default function EntryDetail() {
     </article>
   );
 }
+
+function EquipBanner({ entry, user, onUpdated }) {
+  const [active, setActive] = useState(null); // user's currently-equipped PC
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get("/me/active-pc").then((r) => setActive(r.data)).catch(() => {});
+  }, [user]);
+
+  if (!user) {
+    return (
+      <div className="lantern-card p-3 mb-6 text-center" data-testid="equip-banner-anon">
+        <span className="text-xs text-muted-bone italic">
+          <Link to="/profile" className="text-lantern hover:underline">Sign in</Link> to equip this character and use it for your rolls.
+        </span>
+      </div>
+    );
+  }
+
+  const ownerId = entry?.metadata?.user_id || "";
+  const isMine = ownerId === user.id;
+  const claimedByOther = ownerId && ownerId !== user.id && user.role !== "admin";
+  const isEquipped = active && active.id === entry.id;
+
+  const equip = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/pcs/${entry.id}/equip`);
+      onUpdated?.(data.entry);
+      setActive(data.entry);
+      toast.success(isMine ? "Set as your active character" : "Character claimed & equipped");
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setBusy(false); }
+  };
+
+  const unequip = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/pcs/unequip`);
+      setActive(null);
+      toast.success("Unequipped");
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div
+      className="lantern-card p-3 mb-6 flex items-center justify-between gap-3 flex-wrap"
+      style={{ borderColor: isEquipped ? "#FBBF24AA" : undefined }}
+      data-testid="equip-banner"
+    >
+      <div className="text-xs text-bone">
+        {isEquipped ? (
+          <span className="inline-flex items-center gap-2 text-lantern">
+            <Sparkles className="w-3.5 h-3.5" /> <strong>Equipped</strong> — all your rolls flow through this character.
+          </span>
+        ) : claimedByOther ? (
+          <span className="text-muted-bone italic">This character is already claimed by another player.</span>
+        ) : isMine ? (
+          <span className="text-muted-bone">Yours to wield. Equip to set as active.</span>
+        ) : (
+          <span className="text-muted-bone">Unclaimed. Equip this character to make it yours and tie your rolls to it.</span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {isEquipped ? (
+          <button
+            onClick={unequip}
+            disabled={busy}
+            data-testid="unequip-pc-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-widest uppercase border border-rust text-muted-bone hover:text-bone hover:border-[#FBBF24]/50"
+          >
+            Unequip
+          </button>
+        ) : claimedByOther ? null : (
+          <button
+            onClick={equip}
+            disabled={busy}
+            data-testid="equip-pc-btn"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-widest uppercase bg-[#FBBF24] text-[#0B0E0C] font-semibold hover:bg-[#F59E0B] disabled:opacity-50"
+          >
+            <Sparkles className="w-3 h-3" /> {isMine ? "Equip" : "Claim & Equip"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+

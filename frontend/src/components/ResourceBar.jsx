@@ -111,9 +111,10 @@ export default function ResourceBar({ entry, canEdit, onUpdated }) {
         <button
           onClick={() => setEditing({ id: "", name: "", max: 8, current: 8, color: "#FBBF24" })}
           data-testid="add-resource-btn"
-          className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs tracking-widest uppercase border border-dashed border-rust text-muted-bone hover:text-lantern hover:border-[#FBBF24]/60"
+          title={resources.length === 0 ? "Add your first resource" : "Add resource"}
+          className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] tracking-widest uppercase border border-rust/60 text-muted-bone hover:text-lantern hover:border-[#FBBF24]/40"
         >
-          <Plus className="w-3.5 h-3.5" /> {resources.length === 0 ? "Add your first resource" : "Add resource"}
+          <Plus className="w-3 h-3" /> {resources.length === 0 ? "Add resource" : "Add"}
         </button>
       )}
 

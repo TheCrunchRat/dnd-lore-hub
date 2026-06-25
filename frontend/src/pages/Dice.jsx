@@ -37,14 +37,20 @@ export default function Dice() {
   const [feed, setFeed] = useState([]); // shared roll feed (chronological asc, newest at end)
   const lastTsRef = useRef(null);
 
-  // Active character (from ?character= query OR a manual pick)
+  // Active character (from ?character= query OR a manual pick OR the user's equipped PC)
   const [pcEntry, setPcEntry] = useState(null);
   const [pcTrees, setPcTrees] = useState([]);
   useEffect(() => {
-    if (!characterId) { setPcEntry(null); return; }
-    api.get(`/entries/${characterId}`).then((r) => setPcEntry(r.data)).catch(() => setPcEntry(null));
+    if (characterId) {
+      api.get(`/entries/${characterId}`).then((r) => setPcEntry(r.data)).catch(() => setPcEntry(null));
+    } else if (user) {
+      // Fall back to the user's equipped PC
+      api.get("/me/active-pc").then((r) => setPcEntry(r.data || null)).catch(() => setPcEntry(null));
+    } else {
+      setPcEntry(null);
+    }
     api.get("/magic/trees").then((r) => setPcTrees(r.data || [])).catch(() => setPcTrees([]));
-  }, [characterId]);
+  }, [characterId, user]);
   const pcModTotals = pcEntry ? computeModifiers(pcEntry, pcTrees).totals : null;
   // When a PC is selected and we don't have a player name yet, prefer the PC's owner
   useEffect(() => {
@@ -53,10 +59,20 @@ export default function Dice() {
       if (owner) setPlayerName(owner);
     }
   }, [pcEntry, playerName]);
-  const clearCharacter = () => {
-    const next = new URLSearchParams(searchParams);
-    next.delete("character");
-    setSearchParams(next, { replace: true });
+  const clearCharacter = async () => {
+    if (characterId) {
+      // Was explicitly via ?character= → strip the query but leave active PC alone
+      const next = new URLSearchParams(searchParams);
+      next.delete("character");
+      setSearchParams(next, { replace: true });
+    } else if (pcEntry) {
+      // Was auto-loaded from the user's equipped PC → unequip
+      try {
+        await api.post("/pcs/unequip");
+        setPcEntry(null);
+        toast.success("Unequipped");
+      } catch (e) { toast.error(formatApiError(e)); }
+    }
   };
 
   // -------- Polling for shared feed --------
