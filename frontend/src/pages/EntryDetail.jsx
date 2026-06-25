@@ -225,7 +225,7 @@ export default function EntryDetail() {
         {entry.metadata && Object.keys(entry.metadata).length > 0 && (
           <div className="lantern-card p-6 mb-10 grid grid-cols-2 sm:grid-cols-3 gap-4">
             {Object.entries(entry.metadata)
-              .filter(([k]) => !["ability_scores","max_hp","current_hp","armor_class","speed","proficiencies","saving_throws","languages","spells_known","spells_prepared","spell_slots","spell_slots_used","equipment","features","user_id","race_id","class_id","resource_name","resource_max","resource_current","resource_color"].includes(k))
+              .filter(([k]) => !["ability_scores","max_hp","current_hp","armor_class","speed","proficiencies","saving_throws","languages","spells_known","spells_prepared","spell_slots","spell_slots_used","equipment","features","user_id","race_id","class_id","resource_name","resource_max","resource_current","resource_color","origin_unlocks","foundation_unlocks","class_tree_id"].includes(k))
               .map(([k, v]) => (
                 <div key={k}>
                   <div className="text-[10px] tracking-[0.3em] uppercase text-lantern mb-1">{k.replace(/_/g, " ")}</div>

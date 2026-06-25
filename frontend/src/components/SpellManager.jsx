@@ -1,5 +1,5 @@
-import React, { useMemo } from "react";
-import { Sparkles, BookOpen, RotateCcw } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Sparkles, BookOpen, RotateCcw, Flame } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { toast } from "sonner";
 
@@ -16,13 +16,55 @@ import { toast } from "sonner";
  *  - `metadata.spells_known` — the full list (canonical).
  *  - `metadata.spells_prepared` — subset that are prepared today. If absent, ALL
  *    spells are treated as prepared (back-compat: nothing breaks for old PCs).
+ *
+ * Origin-tree spells: any `origin_unlocks` entry with `as_spell: true` is also
+ * displayed in the spells list (badge: Flame). They are level-gated: if the PC's
+ * level is below `node.level_required`, the spell does not appear. Toggling
+ * prepared on an origin spell adds its node name into `spells_prepared`.
  */
 export default function SpellManager({ entry, canEdit, onUpdated }) {
   const m = entry?.metadata || {};
   const slotsRaw = m.spell_slots || {};
   const slotsUsed = m.spell_slots_used || {};
-  const spells = m.spells_known || [];
+  const knownSpells = m.spells_known || [];
   const prepared = m.spells_prepared;
+  const pcLevel = Math.max(1, m.level || 1);
+  const originUnlocks = m.origin_unlocks || [];
+
+  // Resolve origin-as-spell nodes (level-gated)
+  const [trees, setTrees] = useState([]);
+  useEffect(() => {
+    if ((originUnlocks || []).some((u) => u.as_spell)) {
+      api.get("/magic/trees").then((r) => setTrees(r.data)).catch(() => {});
+    }
+  }, [originUnlocks]);
+
+  const originSpells = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+    for (const u of originUnlocks) {
+      if (!u.as_spell) continue;
+      const tree = trees.find((t) => t.id === u.tree_id);
+      if (!tree) continue;
+      const node = (tree.nodes || []).find((n) => n.id === u.node_id);
+      if (!node) continue;
+      if (node.level_required && node.level_required > pcLevel) continue;
+      if (seen.has(node.name)) continue;
+      seen.add(node.name);
+      out.push({ name: node.name, tree, node });
+    }
+    return out;
+  }, [originUnlocks, trees, pcLevel]);
+
+  // Merge known spells + origin spells into a unified display list
+  const allSpells = useMemo(() => {
+    const knownSet = new Set(knownSpells);
+    const result = knownSpells.map((s) => ({ name: s, origin: null }));
+    for (const o of originSpells) {
+      if (!knownSet.has(o.name)) result.push({ name: o.name, origin: o.tree });
+    }
+    return result;
+  }, [knownSpells, originSpells]);
 
   const slots = useMemo(() => {
     const out = {};
@@ -37,7 +79,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
   }, [slotsRaw, slotsUsed]);
 
   const hasSlots = Object.keys(slots).length > 0;
-  const hasSpells = spells.length > 0;
+  const hasSpells = allSpells.length > 0;
   if (!hasSlots && !hasSpells) return null;
 
   const persist = async (patch, opts = {}) => {
@@ -66,7 +108,8 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
   };
 
   const togglePrepared = (spell) => {
-    const cur = Array.isArray(prepared) ? prepared : [...spells]; // default: all prepared
+    const allNames = allSpells.map((s) => s.name);
+    const cur = Array.isArray(prepared) ? prepared : allNames; // default: all prepared
     const isPrepared = cur.includes(spell);
     const next = isPrepared ? cur.filter((s) => s !== spell) : [...cur, spell];
     persist({ spells_prepared: next });
@@ -139,7 +182,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
               <BookOpen className="w-3.5 h-3.5" /> Spells
               {Array.isArray(prepared) && (
                 <span className="text-[10px] tracking-widest text-muted-bone normal-case ml-1">
-                  · {prepared.length} prepared / {spells.length} known
+                  · {prepared.length} prepared / {allSpells.length} known
                 </span>
               )}
             </div>
@@ -150,23 +193,26 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
             )}
           </div>
           <ul className="flex flex-wrap gap-1.5">
-            {spells.map((s) => {
-              const isP = isPrepared(s);
+            {allSpells.map(({ name, origin }) => {
+              const isP = isPrepared(name);
               return (
-                <li key={s}>
+                <li key={name}>
                   <button
                     type="button"
                     disabled={!canEdit}
-                    onClick={() => togglePrepared(s)}
-                    data-testid={`spell-${s.replace(/\s+/g, "-").toLowerCase()}`}
-                    className={`text-xs px-2 py-1 border transition-all ${
+                    onClick={() => togglePrepared(name)}
+                    data-testid={`spell-${name.replace(/\s+/g, "-").toLowerCase()}`}
+                    className={`text-xs px-2 py-1 border transition-all inline-flex items-center gap-1 ${
                       isP
                         ? "border-[#FBBF24] text-lantern bg-[#FBBF24]/[0.08] shadow-[0_0_8px_rgba(251,191,36,0.2)]"
                         : "border-rust text-muted-bone line-through opacity-60"
                     } ${canEdit ? "cursor-pointer hover:border-[#FBBF24]/60" : "cursor-default"}`}
-                    title={isP ? "Prepared — tap to un-prepare" : "Known but not prepared — tap to prepare"}
+                    title={origin
+                      ? `Origin spell from ${origin.name}${isP ? " — prepared" : " — not prepared"}`
+                      : isP ? "Prepared — tap to un-prepare" : "Known but not prepared — tap to prepare"}
                   >
-                    {s}
+                    {origin && <Flame className="w-3 h-3" style={{ color: origin.accent_color || "#FBBF24" }} />}
+                    {name}
                   </button>
                 </li>
               );

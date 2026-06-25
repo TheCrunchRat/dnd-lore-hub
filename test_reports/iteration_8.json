@@ -1,0 +1,47 @@
+{
+  "summary": "Iter_8 batch (3-tree → PC integration). Backend: 7 new pytests pass for POST/PUT /api/pcs accepting origin_unlocks, foundation_unlocks, class_tree_id with metadata preservation; +1 level-cycle test passes. Frontend: edit-class-path/foundation/origin testids render; MagicTreePicker opens for all 3 categories; foundation toggle persists and renders on sheet with level-gated red Lv badge (The Wick, Lv 13 verified); origin toggle + as-spell merges node into spells-list (Greenwhisper now appears as 6th known spell). CharacterBuilder shows ONLY 'Class (homebrew tree)' dropdown — the 5e SRD class dropdown is gone. EntryDetail correctly filters origin_unlocks, foundation_unlocks, class_tree_id from the legacy metadata card.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CharacterTreeSections / Section.editTestId",
+        "issue": "When a class tree IS chosen, the Class Path edit-button testid becomes 'edit-class-path-<treeSlug>' (e.g. 'edit-class-path-swordsman') instead of the spec'd stable 'edit-class-path'. Reason: label is dynamic 'Class Path · <treeName>' and the testid is derived from label.toLowerCase().replace(/[^a-z0-9]+/g,'-'). Tests using exact selector edit-class-path will only match when no class is chosen. Recommend hardcoding stable testid per section instead of deriving from label.",
+        "selector": "[data-testid^='edit-class-path']",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_magic_trees_pc.py",
+    "/app/backend/tests/test_level_gate_e2e.py",
+    "/app/test_reports/pytest/iter8_trees.xml",
+    "/app/test_reports/pytest/iter8_levelgate.xml"
+  ],
+  "action_items": [
+    "Optional: make edit-button testids stable (e.g. pass editTestId prop explicitly) so 'edit-class-path' selector works regardless of whether a tree is chosen.",
+    "Seed gap (not a code bug): swordsman class tree has 0 nodes; Wickwarden's 15 nodes all have level_required=0. Hence class-tree level-gate REVEAL/HIDE cannot be visually demonstrated until a class tree includes a node with level_required>1. Recommend adding a few gated nodes to Wickwarden (e.g. Lv 3, Lv 5) so the leveling experience is visible. Foundation tree 'The Sundered Lantern' already has a Lv 13 gated node ('The Wick') and renders correctly in red with Lock icon at level 1 — full visual proof of the gating UI.",
+    "Backend partial-update merge correctness verified: PUT with only {level} does NOT wipe origin_unlocks/foundation_unlocks/class_tree_id; this matches the expectation that level changes only re-render the gated view."
+  ],
+  "critical_code_review_comments": [
+    "MagicTreePicker.toggleNode: when toggling a node OFF, it correctly removes the entry; but when category==='origin' and as_spell was true, the spell silently disappears from spells-list. UX is consistent (origin section also disappears) but consider toast feedback.",
+    "CharacterTreeSections.persist() forwards `...m` (full existing metadata) inside the PUT body — but PlayerCharacterIn has extra='ignore', so unknown nested fields are silently dropped server-side. Verified `ability_scores` and other 5e fields survive because they map to typed fields. Safe for now.",
+    "Backend update_pc treats `class_tree_id=''` as 'set to empty' then filters out via `v not in ('', None)` — works for clearing. However sending class_tree_id=None won't clear (the `if v is not None` check skips). Minor inconsistency.",
+    "Section edit-button testid is auto-derived from the section label. Currently the Class Path label includes the chosen tree name, leading to dynamic testids. Hardcode for testability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_magic_trees_pc.py (new)",
+    "/app/backend/tests/test_level_gate_e2e.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8 new tests pass)", "frontend": "~90% (all critical flows verified; one minor testid naming inconsistency)"},
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1",
+  "seed_data_creation": "Created and torn down TEST_TreePC_* PCs in test_magic_trees_pc.py. No persistent seed changes; wawa PC level was restored to original after the level-gate test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All iter_8 features functional. The only finding worth a developer touch is the dynamic edit-class-path testid (becomes edit-class-path-<treeslug> when a tree is selected). If reproducing UI tests, log in as DM, navigate /characters/wawa. Wickwarden class tree has all-ungated nodes; The Sundered Lantern foundation tree has 'The Wick' at level_required=13 which demonstrates the red Lv badge perfectly at low PC levels. The swordsman class tree is empty and won't render any class features. Backend tests use the live preview URL via REACT_APP_BACKEND_URL.",
+  "rca of the issue": "N/A — no broken flow found. Minor issue (dynamic testid) RCA: in CharacterTreeSections.jsx Section component, testid is `edit-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`; when classTree is chosen the label becomes 'Class Path · <treeName>', so testid becomes 'edit-class-path-<treename>'. Fix: pass an explicit editTestId='edit-class-path' prop to Section so the testid is stable."
+}

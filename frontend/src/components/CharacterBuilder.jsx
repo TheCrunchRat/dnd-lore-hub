@@ -54,6 +54,8 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
   const [summary, setSummary] = useState(existing?.summary || "");
   const [imageUrl, setImageUrl] = useState(existing?.image_url || "");
   const [playerName, setPlayerName] = useState(user?.name || meta.owner || localStorage.getItem(NAME_KEY) || "");
+  const [classTreeId, setClassTreeId] = useState(meta.class_tree_id || "");
+  const [classTrees, setClassTrees] = useState([]);
 
   // Rules library
   const [races, setRaces] = useState([]);
@@ -70,8 +72,10 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
       api.get("/rules/races"), api.get("/rules/classes"),
       api.get("/rules/skills"), api.get("/rules/spells"),
       api.get("/rules/_computed/spell_slots"),
-    ]).then(([r, c, sk, sp, sl]) => {
+      api.get("/magic/trees"),
+    ]).then(([r, c, sk, sp, sl, tr]) => {
       setRaces(r.data); setClasses(c.data); setSkills(sk.data); setSpellsLib(sp.data); setSlotsTable(sl.data);
+      setClassTrees(tr.data.filter((t) => (t.tree_category || "origin") === "class"));
     }).catch(() => {});
   }, [open]);
 
@@ -116,12 +120,14 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
     if (!name.trim() || !playerName.trim()) { toast.error("Name and player name are required"); return; }
     setSavingState(true);
     try {
+      const selectedClassTree = classTrees.find((t) => t.id === classTreeId);
       const payload = {
         player_name: playerName,
         name, subtitle, summary, content, image_url: imageUrl,
-        race: race?.name || raceText, char_class: klass?.name || classText,
+        race: race?.name || raceText, char_class: selectedClassTree?.name || classText,
         level, alignment, pronouns,
         race_id: raceId || null, class_id: classId || null, background,
+        class_tree_id: classTreeId || null,
         ability_scores: finalScores, max_hp: maxHp, current_hp: curHp,
         armor_class: ac, speed,
         proficiencies: profs, saving_throws: saves,
@@ -201,10 +207,23 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
                   <Field label="Race (free text — used when no SRD pick)"><Inp v={raceText} on={setRaceText} placeholder="Lanternkin" /></Field>
                 </FieldRow>
                 <FieldRow>
-                  <Field label="Class (5e SRD)">
-                    <Sel v={classId} on={setClassId} opts={[{value:"", label:"-- Homebrew --"}, ...classes.map(c=>({value:c.id, label:c.name}))]} />
+                  <Field label="Class (homebrew tree)">
+                    <Sel
+                      v={classTreeId}
+                      on={(id) => {
+                        setClassTreeId(id);
+                        const t = classTrees.find((x) => x.id === id);
+                        if (t) setClassText(t.name);
+                      }}
+                      opts={[
+                        { value: "", label: classTrees.length ? "-- Pick a class tree --" : "-- No class trees forged yet --" },
+                        ...classTrees.map((t) => ({ value: t.id, label: t.name })),
+                      ]}
+                    />
                   </Field>
-                  <Field label="Class (free text)"><Inp v={classText} on={setClassText} placeholder="Wickfire Keeper" /></Field>
+                  <Field label="Class (free text — used if no tree picked)">
+                    <Inp v={classText} on={setClassText} placeholder="Wickfire Keeper" />
+                  </Field>
                 </FieldRow>
                 <FieldRow>
                   <Field label="Level"><Inp v={level} on={(v) => setLevel(parseInt(v||"1",10))} type="number" min={1} max={20} /></Field>

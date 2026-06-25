@@ -1137,6 +1137,10 @@ class PlayerCharacterIn(BaseModel):
     resource_current: Optional[int] = None
     resource_max: Optional[int] = None
     resource_color: Optional[str] = None  # hex; defaults to lantern gold
+    # Magic-tree integration
+    origin_unlocks: Optional[List[dict]] = None      # [{tree_id, node_id, as_spell: bool}]
+    foundation_unlocks: Optional[List[dict]] = None  # [{tree_id, node_id}]
+    class_tree_id: Optional[str] = None              # selected homebrew class-tree id
 
 
 async def _is_admin(request: Request) -> bool:
@@ -1189,6 +1193,9 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "resource_max": body.resource_max,
         "resource_current": body.resource_current,
         "resource_color": body.resource_color or "",
+        "origin_unlocks": body.origin_unlocks or [],
+        "foundation_unlocks": body.foundation_unlocks or [],
+        "class_tree_id": body.class_tree_id or "",
     }
     if user_id:
         metadata["user_id"] = user_id
@@ -1262,6 +1269,9 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "spell_slots_used": body.spell_slots_used,
         "equipment": body.equipment,
         "features": body.features,
+        "origin_unlocks": body.origin_unlocks,
+        "foundation_unlocks": body.foundation_unlocks,
+        "class_tree_id": body.class_tree_id,
     }.items():
         if v is not None:
             metadata[k] = v

@@ -2,6 +2,7 @@ import React from "react";
 import { Heart, Shield, Footprints, Sparkles, Sword } from "lucide-react";
 import ResourceBar from "./ResourceBar";
 import SpellManager from "./SpellManager";
+import CharacterTreeSections from "./CharacterTreeSections";
 
 const ABILITIES = [
   { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
@@ -93,9 +94,11 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
         </div>
       </div>
 
-      {(m.spell_slots && Object.keys(m.spell_slots).length > 0) || (m.spells_known && m.spells_known.length > 0) ? (
+      {(m.spell_slots && Object.keys(m.spell_slots).length > 0) || (m.spells_known && m.spells_known.length > 0) || (m.origin_unlocks || []).some((u) => u.as_spell) ? (
         <SpellManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       ) : null}
+
+      <CharacterTreeSections entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
 
       {(m.equipment && m.equipment.length > 0) && (
         <div className="lantern-card p-4 mb-6">
