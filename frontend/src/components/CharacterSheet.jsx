@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Heart, Shield, Footprints, Sparkles, Sword, Zap } from "lucide-react";
+import { Heart, Shield, Footprints, Sparkles, Sword, Zap, Coins } from "lucide-react";
 import api from "../lib/api";
 import { computeModifiers } from "../lib/statModifiers";
 import { effectivePage, blockConfig, useRealmLayout } from "../lib/layouts";
@@ -77,6 +77,13 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated, equi
                 <h2 className="font-serif-display text-3xl sm:text-4xl text-bone leading-tight mt-1">{entry.title}</h2>
                 {entry.subtitle && <div className="text-sm text-muted-bone italic mt-1">{entry.subtitle}</div>}
                 {m.alignment && <div className="text-[10px] tracking-widest uppercase text-muted-bone mt-2">{m.alignment}</div>}
+                {(m.gold_gp != null) && (
+                  <div className="inline-flex items-center gap-1.5 mt-2 px-2 py-1 border border-rust text-bone" data-testid="sheet-gold">
+                    <Coins className="w-3.5 h-3.5 text-lantern" />
+                    <span className="font-serif-display text-base leading-none">{m.gold_gp}</span>
+                    <span className="text-[9px] tracking-widest text-muted-bone uppercase">gp</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

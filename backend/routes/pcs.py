@@ -46,6 +46,8 @@ class PlayerCharacterIn(BaseModel):
     spell_slots_used: Optional[dict] = None     # {"1": 2, ...} spent per level (≤ max)
     equipment: Optional[List[str]] = None
     features: Optional[List[str]] = None
+    # Gold balance (DM-managed; players can spend via shop)
+    gold_gp: Optional[int] = None
     # Custom configurable resource (legacy single-resource fields)
     resource_name: Optional[str] = None
     resource_current: Optional[int] = None
@@ -114,6 +116,7 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "spell_slots_used": body.spell_slots_used or {},
         "equipment": body.equipment or [],
         "features": body.features or [],
+        "gold_gp": body.gold_gp if body.gold_gp is not None else 0,
         "resource_name": body.resource_name or "",
         "resource_max": body.resource_max,
         "resource_current": body.resource_current,
@@ -188,6 +191,7 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "spell_slots_used": body.spell_slots_used,
         "equipment": body.equipment,
         "features": body.features,
+        "gold_gp": body.gold_gp,
         "origin_unlocks": body.origin_unlocks,
         "foundation_unlocks": body.foundation_unlocks,
         "class_tree_id": body.class_tree_id,

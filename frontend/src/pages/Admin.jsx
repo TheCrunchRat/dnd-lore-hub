@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   Plus, Trash2, Save, X, Pin, PinOff, Pencil, Lock, Unlock,
   Search, Library, Map as MapIcon, Sparkles, CalendarDays, Users, FileText,
-  Image as ImageIcon, Flame, Eye, ArrowUpDown, BookText, LayoutGrid,
+  Image as ImageIcon, Flame, Eye, ArrowUpDown, BookText, LayoutGrid, Store,
 } from "lucide-react";
 import { toast } from "sonner";
 import MarkdownEditor from "../components/MarkdownEditor";
@@ -35,6 +35,7 @@ const SORTS = [
 const QUICK_LINKS = [
   { to: "/admin/rules", label: "Rules Library", icon: Library, testid: "rules-admin-link" },
   { to: "/admin/layouts", label: "Page Layouts", icon: LayoutGrid, testid: "layouts-admin-link" },
+  { to: "/admin/shop", label: "Shop & Merchants", icon: Store, testid: "shop-admin-link" },
   { to: "/guide", label: "Guides", icon: BookText, testid: "qlink-guide" },
   { to: "/map", label: "World Map", icon: MapIcon, testid: "qlink-map" },
   { to: "/magic", label: "Magic Trees", icon: Sparkles, testid: "qlink-magic" },

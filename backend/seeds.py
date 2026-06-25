@@ -431,3 +431,79 @@ async def seed_default_map():
         {"$set": {"map_id": default_id}},
     )
     logger.info("Seeded default regional map and migrated existing placements")
+
+
+# ---------------- Shop starter (merchants + items) ----------------
+SEED_MERCHANTS = [
+    {
+        "name": "Quill of the Wickrow",
+        "title": "Ash-clad Herbalist",
+        "description": "A soft-spoken brewer of tinctures, hidden in a wagon at the end of every wayshrine she tends.",
+        "greeting": "Welcome, traveler. The kettle's still warm — what ails you tonight?",
+        "portrait_url": "https://images.pexels.com/photos/8369753/pexels-photo-8369753.jpeg",
+        "background_url": "https://images.unsplash.com/photo-1519074069444-1ba4fff66d16?auto=format&fit=crop&w=2400&q=80",
+        "counter_url": "",
+        "closed_art_url": "",
+        "accent_color": "#7BAE7F",
+        "is_open": True,
+        "sort_order": 0,
+    },
+    {
+        "name": "Maerin Bone-Trader",
+        "title": "Salt-Iron Dealer",
+        "description": "A hard-eyed fence who deals in weapons forged from the bones of fallen wayshrines and reliquaries that no priest will touch.",
+        "greeting": "Coin first, then talk. The bones don't haggle.",
+        "portrait_url": "https://images.pexels.com/photos/8369851/pexels-photo-8369851.jpeg",
+        "background_url": "https://images.pexels.com/photos/161169/blacksmith-shop-old-shop-old-fashioned-iron-161169.jpeg",
+        "counter_url": "",
+        "closed_art_url": "",
+        "accent_color": "#C97B4A",
+        "is_open": True,
+        "sort_order": 1,
+    },
+]
+
+SEED_SHOP_ITEMS = {
+    "Quill of the Wickrow": [
+        {"name": "Lantern Oil (flask)",       "category": "consumable", "rarity": "common",    "price_gp": 5,   "featured": True,  "description": "A pint of slow-burning oil. Keeps a hand-lantern lit for eight hours."},
+        {"name": "Mossblood Tincture",        "category": "consumable", "rarity": "uncommon",  "price_gp": 25,  "featured": True,  "description": "Bitter green draught. Drink to recover 2d4+2 HP and shake off one minor curse."},
+        {"name": "Wickfire Match (bundle)",   "category": "consumable", "rarity": "common",    "price_gp": 8,                       "description": "Treated matchsticks that strike even in rain. Burns hot enough to light a wet pyre."},
+        {"name": "Pilgrim's Salt (pouch)",    "category": "consumable", "rarity": "common",    "price_gp": 10,                      "description": "Blessed salt from the Brass Cloister. Sprinkle around a sleeping camp to ward off lesser bog-stalkers."},
+        {"name": "Crow-Feather Compass",      "category": "curio",      "rarity": "uncommon",  "price_gp": 45,  "featured": True,  "description": "A small brass needle that points not to north but to the nearest lit lantern."},
+        {"name": "Witchwood Healing Poultice","category": "consumable", "rarity": "uncommon",  "price_gp": 18,                      "description": "Steeped bark and shrine-moss in a wax wrapper. One use; restores 1d8 HP and removes 1 level of exhaustion."},
+        {"name": "Sealed Memory-Jar",         "category": "curio",      "rarity": "rare",      "price_gp": 120,                     "description": "An empty glass jar. The first dream you breathe into it can be uncorked and shown to another."},
+    ],
+    "Maerin Bone-Trader": [
+        {"name": "Salt-Iron Dagger",          "category": "weapon",     "rarity": "uncommon",  "price_gp": 60,  "featured": True,  "description": "A 10-inch blade forged from reliquary nails. Counts as silvered against undead; +1 to damage vs spirits."},
+        {"name": "Brass-Buckle Chain Mail",   "category": "armor",      "rarity": "common",    "price_gp": 75,                      "description": "Standard mail with reinforced lantern-clasps at the shoulder."},
+        {"name": "Wayshrine Hand-Lantern",    "category": "gear",       "rarity": "common",    "price_gp": 22,                      "description": "Brass with a horn-pane. Burns 12 hours on a single flask of oil. Cannot be extinguished by wind under 30 mph."},
+        {"name": "Wickwarden's Vow-Cord",     "category": "magical",    "rarity": "rare",      "price_gp": 220, "featured": True,  "description": "A braided cord blessed by the Order. Once per day, you may add +1d4 to a saving throw against fear."},
+        {"name": "Sundered Lantern Shard",    "category": "magical",    "rarity": "very-rare", "price_gp": 850,                     "description": "A sliver of a fallen wayshrine's lantern. Speak a name once — that name will burn dimly above the shard for one full night."},
+        {"name": "Climbing Pitons (set of 10)", "category": "gear",     "rarity": "common",    "price_gp": 4,                       "description": "Forged iron, no flourish. Necessary on the Sunken Road."},
+        {"name": "Brass Knuckles, Engraved",  "category": "weapon",     "rarity": "common",    "price_gp": 12,                      "description": "Maerin will not tell you what the engraving means. He suggests you don't ask."},
+        {"name": "Reliquary-Bone Holy Symbol","category": "magical",    "rarity": "uncommon",  "price_gp": 95,                      "description": "Carved from a saint's femur. Functions as a holy symbol for any deity of the Long Dusk."},
+    ],
+}
+
+
+async def seed_shop():
+    if await db.shop_merchants.count_documents({}) > 0:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    for m in SEED_MERCHANTS:
+        mid = str(uuid.uuid4())
+        slug = slugify(m["name"])
+        doc = {**m, "id": mid, "slug": slug, "created_at": now, "updated_at": now}
+        await db.shop_merchants.insert_one(doc)
+        for idx, it in enumerate(SEED_SHOP_ITEMS.get(m["name"], [])):
+            await db.shop_items.insert_one({
+                **it,
+                "id": str(uuid.uuid4()),
+                "merchant_id": mid,
+                "image_url": "",
+                "stock": None,
+                "sort_order": idx,
+                "featured": it.get("featured", False),
+                "created_at": now, "updated_at": now,
+            })
+    logger.info("Seeded shop merchants and items")

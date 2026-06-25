@@ -22,10 +22,11 @@ from routes.sessions import router as sessions_router
 from routes.pcs import router as pcs_router
 from routes.rules import router as rules_router
 from routes.layouts import router as layouts_router
+from routes.shop import router as shop_router
 from storage import router as storage_router, init_storage
 from seeds import (
     seed_admins, seed_entries, seed_magic_trees, seed_rules,
-    seed_default_map, seed_guides,
+    seed_default_map, seed_guides, seed_shop,
 )
 
 app = FastAPI(title="Lantern Realm Codex API")
@@ -36,7 +37,7 @@ api = APIRouter(prefix="/api")
 for sub in (
     auth_router, entries_router, guides_router, maps_router, dice_router,
     magic_router, sessions_router, pcs_router, rules_router, layouts_router,
-    storage_router,
+    shop_router, storage_router,
 ):
     api.include_router(sub)
 
@@ -79,6 +80,12 @@ async def on_startup():
     await db.regional_maps.create_index("slug", unique=True)
     await db.guides.create_index("id", unique=True)
     await db.guides.create_index("slug", unique=True)
+    await db.shop_merchants.create_index("id", unique=True)
+    await db.shop_merchants.create_index("slug", unique=True)
+    await db.shop_items.create_index("id", unique=True)
+    await db.shop_items.create_index("merchant_id")
+    await db.shop_requests.create_index("id", unique=True)
+    await db.shop_requests.create_index([("status", 1), ("created_at", -1)])
     for coll in ("rules_races", "rules_classes", "rules_spells", "rules_skills"):
         await db[coll].create_index("id", unique=True)
     await seed_admins()
@@ -87,6 +94,7 @@ async def on_startup():
     await seed_rules()
     await seed_default_map()
     await seed_guides()
+    await seed_shop()
     try:
         init_storage()
         logger.info("Emergent object storage initialised")
