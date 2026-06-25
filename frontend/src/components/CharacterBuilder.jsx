@@ -329,33 +329,6 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
 
             {STEPS[step] === "spells" && (
               <>
-                <Field label="Spell Slots (max / used)">
-                  <div className="text-[11px] text-muted-bone mb-2 italic">
-                    {klass?.spellcasting
-                      ? `Pre-filled from ${klass.name} (level ${level}). Adjust as needed.`
-                      : "Configure slots if your class casts spells. Otherwise leave empty."}
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                    {[1,2,3,4,5,6,7,8,9].map((lvl) => {
-                      const s = spellSlots[lvl] || { max: 0, used: 0 };
-                      return (
-                        <div key={lvl} className="border border-rust p-2 text-center">
-                          <div className="text-[10px] tracking-widest uppercase text-lantern mb-1">Lv {lvl}</div>
-                          <div className="flex items-center justify-center gap-1 text-sm">
-                            <button onClick={() => adjustSlot(lvl, "used", 1)} className="text-muted-bone hover:text-red-400" data-testid={`use-slot-${lvl}`}><Minus className="w-3 h-3"/></button>
-                            <span className="text-bone">{(s.max||0) - (s.used||0)}/{s.max||0}</span>
-                            <button onClick={() => adjustSlot(lvl, "used", -1)} className="text-muted-bone hover:text-lantern" data-testid={`free-slot-${lvl}`}><Plus className="w-3 h-3"/></button>
-                          </div>
-                          <div className="flex items-center justify-center gap-1 mt-1 text-[10px] text-muted-bone">
-                            max <button onClick={() => adjustSlot(lvl, "max", -1)} className="hover:text-lantern">−</button>
-                            {s.max||0}
-                            <button onClick={() => adjustSlot(lvl, "max", 1)} className="hover:text-lantern">+</button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Field>
                 <Field label="Spells Known / Prepared">
                   <div className="flex flex-wrap items-center gap-2 mb-3">
                     <input

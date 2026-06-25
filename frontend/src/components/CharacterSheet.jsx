@@ -4,6 +4,7 @@ import api from "../lib/api";
 import { computeModifiers } from "../lib/statModifiers";
 import ResourceBar from "./ResourceBar";
 import SpellManager from "./SpellManager";
+import RestManager from "./RestManager";
 import CharacterTreeSections from "./CharacterTreeSections";
 
 const ABILITIES = [
@@ -55,6 +56,7 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
   return (
     <div className="mb-10" data-testid="character-sheet">
       <ResourceBar entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
+      <RestManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         <StatBlock icon={Heart} label="HP" value={`${curHp ?? "—"} / ${maxHp ?? "—"}`} mod={modTotals.hp} sources={byStat.hp} />
         <StatBlock icon={Shield} label="AC" value={ac ?? "—"} mod={modTotals.ac} sources={byStat.ac} />
@@ -132,7 +134,7 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
         </div>
       </div>
 
-      {(m.spell_slots && Object.keys(m.spell_slots).length > 0) || (m.spells_known && m.spells_known.length > 0) || (m.origin_unlocks || []).some((u) => u.as_spell) ? (
+      {((m.spells_known && m.spells_known.length > 0) || (m.origin_unlocks || []).some((u) => u.as_spell)) ? (
         <SpellManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       ) : null}
 

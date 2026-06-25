@@ -1203,6 +1203,10 @@ class PlayerCharacterIn(BaseModel):
     origin_unlocks: Optional[List[dict]] = None      # [{tree_id, node_id, as_spell: bool}]
     foundation_unlocks: Optional[List[dict]] = None  # [{tree_id, node_id}]
     class_tree_id: Optional[str] = None              # selected homebrew class-tree id
+    # Long/Short rest recovery config:
+    #   { long: {hp_value, hp_is_percent, resource_value, resource_is_percent},
+    #     short: {...} }
+    rest_config: Optional[dict] = None
 
 
 async def _is_admin(request: Request) -> bool:
@@ -1258,6 +1262,7 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "origin_unlocks": body.origin_unlocks or [],
         "foundation_unlocks": body.foundation_unlocks or [],
         "class_tree_id": body.class_tree_id or "",
+        "rest_config": body.rest_config or {},
     }
     if user_id:
         metadata["user_id"] = user_id
@@ -1334,6 +1339,7 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "origin_unlocks": body.origin_unlocks,
         "foundation_unlocks": body.foundation_unlocks,
         "class_tree_id": body.class_tree_id,
+        "rest_config": body.rest_config,
     }.items():
         if v is not None:
             metadata[k] = v

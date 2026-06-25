@@ -1,0 +1,39 @@
+{
+  "summary": "Iter_11 — Verified Rest Manager feature (Long+Short rest with configurable recovery, gear modal) end-to-end. Backend: 3 new pytests (test_rest_config.py) — all pass: PUT /api/pcs/{id} round-trips rest_config preserving level/race/class/ability_scores/max_hp/resource_*; current_hp + resource_current persist correctly; flat & percent math both confirmed. Frontend (DM, /characters/wawa): rest-manager card mounted just under ResourceBar; take-long-rest + take-short-rest + rest-config-btn all visible. spell-slots testid returns 0 nodes (Spell Slots card completely removed). Spells list still renders (spells-list present). Builder → 'Spells' step: NO 'Spell Slots (max / used)' text — only Spells Known list + filters. Gear opens rest-config-overlay with rest-form-long & rest-form-short; configured Long=50 Flat HP / 100% Resource, Short=25% HP / 50% Resource; Save → toast 'Rest config saved' → reload → values persisted (long-hp=50, short-hp=25). Long Rest applied (HP 1→10 clamped, Mana 0→10); Short Rest applied (HP 8 +25% of 10 → 10, Mana 0 +50% of 10 → 5). Anonymous: rest-config-btn hidden, both rest buttons disabled with tooltip 'Only the character owner or DM can rest'. Legacy metadata card on EntryDetail does NOT render 'rest_config' / 'Rest Config: [object Object]'. No 500s, no console errors during the flow.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "CharacterSheet → StatBlock row (HP/AC/Speed/Init)",
+        "issues": [
+          "Each StatBlock shows a stray '0' line under the value when there is no modifier (e.g., 'HP 10 / 10' then a centered '0' below). hasMod guard logic appears correct in JSX (`mod && mod !== 0`) so the '0' likely comes from a different render path or an extra <div> recently added. Cosmetic — confirm StatBlock body doesn't unconditionally output `{mod ?? 0}`. NOT part of the rest feature but visible on the same sheet."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_rest_config.py",
+    "/app/test_reports/pytest/iter11_rest.xml"
+  ],
+  "action_items": [
+    "Investigate the small centered '0' rendered under HP/AC/Speed/Init StatBlocks on the character sheet (unrelated to rest feature, but visible)."
+  ],
+  "critical_code_review_comments": [
+    "RestManager.persist() spreads all of metadata back into the payload. This is fine today because PUT /api/pcs uses 'if v is not None' merging, but the round-trip pattern means client-side mutation bugs could silently clobber rare metadata. Consider a server-side PATCH endpoint that accepts only the fields being changed (current_hp / resource_current / rest_config / spell_slots_used) — would also reduce payload size from full PC blob to ~4 fields per rest tap.",
+    "RestManager defaults (long=100%/100%, short=25%/50%) live in the component. If you also want the server to enforce a default on create, server.py's `rest_config: body.rest_config or {}` initializes to {} — so the very first GET sees {} and the UI silently uses its own defaults. Either seed real defaults in POST or document that {} == 'use client defaults'.",
+    "PUT /api/pcs/{id} can be called by an anonymous client whose body matches `player_name == metadata.owner`. This is the existing 'claim by name' flow but it does mean: anyone who knows the owner's display name can mutate a PC (set HP=0, change resource_max, overwrite rest_config). Not a regression introduced here, but worth re-evaluating now that rest_config is a real persisted user setting.",
+    "RestManager `applyRecover` uses Math.floor for percent — confirmed matches the backend-naive expectation. Document this in the toast/tooltip so users don't expect rounding-up (e.g., 25% of 9 max_hp = +2, not +3).",
+    "EntryDetail.jsx hardcodes an ever-growing exclusion list (now ['ability_scores','max_hp',...,'rest_config']). Consider inverting to an allowlist of metadata keys to render in the legacy properties card, or migrate the card to a per-category renderer."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_rest_config.py (new)"
+  ],
+  "success_rate": { "backend": "100% (3/3 new pytests pass)", "frontend": "100% (all 11 spec items verified)" },
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1",
+  "seed_data_creation": "Seeded wawa (a6ded32c-bce2-4eaf-bf00-939a5fa345f8) with resource_name='Mana', resource_max=10, resource_color='#60A5FA' inside the test module fixture (was None before). Set rest_config to long={50 flat HP, 100% Mana} / short={25% HP, 50% Mana}. After test: current_hp=10, resource_current=5 (from short-rest UI step). Safe to leave — owner Laz, level 3, class Wickwarden unchanged.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter_11 ships: (a) <RestManager /> mounted under ResourceBar on CharacterSheet (data-testid='rest-manager') with take-long-rest, take-short-rest, rest-config-btn; (b) gear → portal modal (data-testid='rest-config-overlay') with rest-form-long & rest-form-short; each form has HP & Resource rows, testids: {long|short}-{hp|resource}-{value|flat|percent}; save: rest-config-save → toast 'Rest config saved'. (c) Spell Slots card fully removed from CharacterSheet (SpellManager keeps spells-list testid for the known/prepared toggles). Builder 'Spells' step no longer has 'Spell Slots (max / used)' grid. (d) Backend: PlayerCharacterIn.rest_config Optional[dict]; POST initializes to {}; PUT merges (if v is not None). spell_slots / spell_slots_used fields kept in DB for back-compat. (e) EntryDetail's legacy-properties filter now excludes 'rest_config'. wawa now has Mana resource (max 10) and rest_config persisted. PCs are mutated via PUT /api/pcs/{id} (auth via cookie OR `player_name` field matching metadata.owner); reads still via GET /api/entries/{id_or_slug}."
+}
