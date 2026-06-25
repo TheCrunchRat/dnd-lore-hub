@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Flame, ExternalLink } from "lucide-react";
+import { BookOpen, Flame, ExternalLink, Dices } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
+import { rollPool, postRoll } from "../lib/dice";
 import { toast } from "sonner";
 
 /**
@@ -21,11 +22,20 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
 
   // Resolve origin-as-spell nodes (level-gated)
   const [trees, setTrees] = useState([]);
+  const [library, setLibrary] = useState([]);
   useEffect(() => {
     if ((originUnlocks || []).some((u) => u.as_spell)) {
       api.get("/magic/trees").then((r) => setTrees(r.data)).catch(() => {});
     }
+    api.get("/spells/library").then((r) => setLibrary(r.data || [])).catch(() => {});
   }, [originUnlocks]);
+
+  // Look up dice config for a spell name (case-insensitive match)
+  const diceFor = (name) => {
+    const sp = library.find((s) => (s.name || "").toLowerCase() === name.toLowerCase());
+    if (!sp || !sp.dice_count || !sp.dice_size) return null;
+    return { count: sp.dice_count, sides: sp.dice_size, bonus: sp.bonus || 0 };
+  };
 
   const originSpells = useMemo(() => {
     const out = [];
@@ -103,6 +113,19 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
           <ul className="flex flex-wrap gap-1.5">
             {allSpells.map(({ name, origin }) => {
               const isP = isPrepared(name);
+              const dice = diceFor(name);
+              const castSpell = async () => {
+                if (!dice) return;
+                const pool = rollPool({ count: dice.count, sides: dice.sides, modifier: dice.bonus });
+                await postRoll({
+                  pc: entry,
+                  label: `${name} (${dice.count}d${dice.sides}${dice.bonus ? (dice.bonus > 0 ? `+${dice.bonus}` : dice.bonus) : ""})`,
+                  kind: "spell",
+                  pool,
+                });
+                const breakdown = pool.rolls.map((r) => r.value).join(" + ");
+                toast(`${name}: ${pool.total}`, { description: `${breakdown}${dice.bonus ? (dice.bonus > 0 ? ` + ${dice.bonus}` : ` − ${Math.abs(dice.bonus)}`) : ""}` });
+              };
               return (
                 <li key={name} className="inline-flex items-stretch">
                   <button
@@ -115,7 +138,7 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
                         ? "border-[#FBBF24] text-lantern bg-[#FBBF24]/[0.08] shadow-[0_0_8px_rgba(251,191,36,0.2)]"
                         : "border-rust text-muted-bone line-through opacity-60"
                     } ${canEdit ? "cursor-pointer hover:border-[#FBBF24]/60" : "cursor-default"} ${
-                      origin ? "rounded-l-sm border-r-0" : ""
+                      origin || dice ? "rounded-l-sm border-r-0" : ""
                     }`}
                     title={origin
                       ? `Origin spell from ${origin.tree.name}${isP ? " — prepared" : " — not prepared"}`
@@ -124,6 +147,18 @@ export default function SpellManager({ entry, canEdit, onUpdated }) {
                     {origin && <Flame className="w-3 h-3" style={{ color: origin.tree.accent_color || "#FBBF24" }} />}
                     {name}
                   </button>
+                  {dice && (
+                    <button
+                      onClick={castSpell}
+                      data-testid={`cast-spell-${name.replace(/\s+/g, "-").toLowerCase()}`}
+                      title={`Roll ${dice.count}d${dice.sides}${dice.bonus ? (dice.bonus > 0 ? `+${dice.bonus}` : dice.bonus) : ""}`}
+                      className={`text-xs px-1.5 border ${origin ? "border-l-0" : "border-l-0"} inline-flex items-center transition-colors ${
+                        isP ? "border-[#FBBF24] text-lantern bg-[#FBBF24]/[0.08]" : "border-rust text-muted-bone"
+                      } hover:text-lantern hover:border-[#FBBF24]/60`}
+                    >
+                      <Dices className="w-3 h-3" />
+                    </button>
+                  )}
                   {origin && (
                     <Link
                       to={`/magic/${origin.tree.slug}?node=${origin.node.id}`}

@@ -373,6 +373,26 @@ function SpellFields({ node, onChange }) {
             on={(v) => onChange({ spell_classes: v.split(",").map((s) => s.trim()).filter(Boolean) })}
             placeholder="Wizard, Sorcerer"
           />
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <TinyInput
+              label="Dice Count"
+              v={node.dice_count ?? ""}
+              on={(v) => onChange({ dice_count: v === "" ? null : parseInt(v, 10) })}
+              placeholder="3"
+            />
+            <TinyInput
+              label="Dice Size"
+              v={node.dice_size ?? ""}
+              on={(v) => onChange({ dice_size: v === "" ? null : parseInt(v, 10) })}
+              placeholder="6"
+            />
+            <TinyInput
+              label="Bonus"
+              v={node.bonus ?? 0}
+              on={(v) => onChange({ bonus: v === "" ? 0 : parseInt(v, 10) })}
+              placeholder="2"
+            />
+          </div>
         </>
       )}
     </div>

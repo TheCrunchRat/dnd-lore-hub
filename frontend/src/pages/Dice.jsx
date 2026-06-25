@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Dices, RotateCcw, Trash2, Plus, Minus, User, Users } from "lucide-react";
+import { useSearchParams, Link } from "react-router-dom";
+import { Dices, RotateCcw, Trash2, Plus, Minus, User, Users, X } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
+import SheetRollers from "../components/SheetRollers";
+import { computeModifiers } from "../lib/statModifiers";
 
 const DIE_TYPES = [4, 6, 8, 10, 12, 20, 100];
 const POLL_MS = 2000;
@@ -23,6 +26,8 @@ function timeAgo(iso) {
 
 export default function Dice() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const characterId = searchParams.get("character");
   const [playerName, setPlayerName] = useState(() => localStorage.getItem(NAME_KEY) || "");
   const [nameDraft, setNameDraft] = useState("");
   const [currentRoll, setCurrentRoll] = useState(null);
@@ -31,6 +36,28 @@ export default function Dice() {
   const [modifier, setModifier] = useState(0);
   const [feed, setFeed] = useState([]); // shared roll feed (chronological asc, newest at end)
   const lastTsRef = useRef(null);
+
+  // Active character (from ?character= query OR a manual pick)
+  const [pcEntry, setPcEntry] = useState(null);
+  const [pcTrees, setPcTrees] = useState([]);
+  useEffect(() => {
+    if (!characterId) { setPcEntry(null); return; }
+    api.get(`/entries/${characterId}`).then((r) => setPcEntry(r.data)).catch(() => setPcEntry(null));
+    api.get("/magic/trees").then((r) => setPcTrees(r.data || [])).catch(() => setPcTrees([]));
+  }, [characterId]);
+  const pcModTotals = pcEntry ? computeModifiers(pcEntry, pcTrees).totals : null;
+  // When a PC is selected and we don't have a player name yet, prefer the PC's owner
+  useEffect(() => {
+    if (pcEntry && !playerName) {
+      const owner = pcEntry.metadata?.owner || pcEntry.metadata?.player_name;
+      if (owner) setPlayerName(owner);
+    }
+  }, [pcEntry, playerName]);
+  const clearCharacter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("character");
+    setSearchParams(next, { replace: true });
+  };
 
   // -------- Polling for shared feed --------
   const fetchFeed = useCallback(async (initial = false) => {
@@ -211,6 +238,29 @@ export default function Dice() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-8">
         {/* LEFT: Display + Quick + Builder */}
         <div className="space-y-8">
+          {pcEntry && (
+            <div className="lantern-card p-4" data-testid="active-pc-banner" style={{ borderColor: "#FBBF24AA" }}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <div className="text-[10px] tracking-[0.3em] uppercase text-lantern">Rolling as</div>
+                  <div className="font-serif-display text-2xl text-bone leading-tight">{pcEntry.title}</div>
+                  <div className="text-xs text-muted-bone">
+                    {pcEntry.metadata?.character_class || pcEntry.metadata?.class}
+                    {pcEntry.metadata?.level ? ` · Level ${pcEntry.metadata.level}` : ""}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link to={`/characters/${pcEntry.slug}`} className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-lantern">
+                    Sheet ↗
+                  </Link>
+                  <button onClick={clearCharacter} data-testid="clear-active-pc" className="p-1 text-muted-bone hover:text-bone" title="Stop rolling as this character">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <SheetRollers entry={pcEntry} modTotals={pcModTotals || {}} />
+            </div>
+          )}
           <div className="lantern-card vine-frame p-10 min-h-[300px] flex flex-col items-center justify-center text-center" data-testid="dice-display">
             {!currentRoll ? (
               <div className="text-muted-bone">

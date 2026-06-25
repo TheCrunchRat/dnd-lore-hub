@@ -183,11 +183,11 @@ export default function Profile() {
         ) : (
           <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {characters.map((c) => (
-              <li key={c.id}>
+              <li key={c.id} className="lantern-card group p-4 hover:border-[#FBBF24]/40 transition-colors">
                 <Link
                   to={`/characters/${c.slug}`}
                   data-testid={`char-link-${c.slug}`}
-                  className="lantern-card group block p-4 hover:border-[#FBBF24]/40 transition-colors"
+                  className="block"
                 >
                   <div className="text-[10px] tracking-[0.3em] uppercase text-lantern">
                     {c.metadata?.character_class || "Character"}
@@ -198,6 +198,22 @@ export default function Profile() {
                   </div>
                   {c.subtitle && <div className="text-sm text-muted-bone italic mt-0.5">{c.subtitle}</div>}
                 </Link>
+                <div className="mt-3 flex gap-2">
+                  <Link
+                    to={`/characters/${c.slug}`}
+                    data-testid={`char-view-${c.slug}`}
+                    className="flex-1 text-center px-3 py-1.5 text-[10px] tracking-widest uppercase border border-rust text-bone hover:border-[#FBBF24]/60 hover:text-lantern"
+                  >
+                    Sheet
+                  </Link>
+                  <Link
+                    to={`/dice?character=${c.id}`}
+                    data-testid={`char-roll-${c.slug}`}
+                    className="flex-1 text-center px-3 py-1.5 text-[10px] tracking-widest uppercase border border-[#FBBF24]/40 text-lantern bg-[#FBBF24]/[0.04] hover:bg-[#FBBF24]/[0.10]"
+                  >
+                    Quick Roll
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

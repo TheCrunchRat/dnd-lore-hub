@@ -7,6 +7,7 @@ import SpellManager from "./SpellManager";
 import RestManager from "./RestManager";
 import CharacterTreeSections from "./CharacterTreeSections";
 import ActiveModifiersPanel from "./ActiveModifiersPanel";
+import SheetRollers from "./SheetRollers";
 
 const ABILITIES = [
   { key: "str", label: "STR" }, { key: "dex", label: "DEX" }, { key: "con", label: "CON" },
@@ -59,6 +60,7 @@ export default function CharacterSheet({ entry, canEdit = false, onUpdated }) {
       <ResourceBar entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <RestManager entry={entry} canEdit={canEdit} onUpdated={onUpdated} />
       <ActiveModifiersPanel entry={entry} trees={trees} />
+      <SheetRollers entry={entry} modTotals={modTotals} />
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
         <StatBlock icon={Heart} label="HP" value={`${curHp ?? "—"} / ${maxHp ?? "—"}`} mod={modTotals.hp} sources={byStat.hp} />
         <StatBlock icon={Shield} label="AC" value={ac ?? "—"} mod={modTotals.ac} sources={byStat.ac} />

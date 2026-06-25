@@ -1,0 +1,50 @@
+{
+  "summary": "End-to-end test of Profile↔Sheet↔Dice integration, 5e skills table, spell dice config, and PC-aware dice feed. Backend regression green (61/61 pytest). All key UI flows validated; reset wawa state after testing.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dice_pc_integration.py",
+    "/app/test_reports/pytest/iter13_dice_pc.xml",
+    "/app/test_reports/pytest/iter13_all.xml"
+  ],
+  "action_items": [
+    "(Setup-only, not a code bug) wawa's origin tree is Mossblood (tree id cf47f48...) but the request mentioned Wickfire/Ember Lash. Ember Lash lives on the Wickfire tree (id 466b9aa...). To demonstrate the cast button on a real PC without manually editing spells_known, consider assigning a Wickfire PC, OR adding Fire Bolt (now configured 1d10+0) to wawa's spells_known.",
+    "OPTIONAL: Add a data-testid to magic-tree node buttons (e.g., 'tree-node-<slug>') so the NodeEditor open flow is easier to automate (currently relied on text=Ember Lash which has timing issues inside SVG/canvas)."
+  ],
+  "critical_code_review_comments": [
+    "dice.js uses {sides,value} matching backend DieRoll schema — correct.",
+    "SheetRollers correctly merges modTotals into ability scores so magic-tree stat modifiers flow into rolls.",
+    "Backend PUT /api/pcs preserves prior metadata via spread {**existing, ...} — verified resources, level, origin_unlocks preserved across a minimal payload update.",
+    "/api/spells/library uniformly exposes dice_count/dice_size/bonus for both rules_spells and magic-node-as-spell rows.",
+    "POST /api/dice/rolls happily accepts pc_id/pc_name/kind, and they round-trip through GET."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dice_pc_integration.py (new)"
+  ],
+  "success_rate": {"backend": "100% (61/61 pytest passed; 5 new + 56 existing)", "frontend": "100% on validated flows"},
+  "test_credentials": "DM: dm@lantern.realm / lantern-keeper-1 (verified working).",
+  "seed_data_creation": "Added Ember Lash dice config (2d6+1) to Wickfire tree via PUT /api/magic/trees (persists across reload). Temporarily added Fire Bolt to wawa's spells_known to validate cast-spell button, then reverted (wawa is back to her original 6 spells: Magic Missile, Hold Person, Sleep, Fireball, Misty Step, Greenwhisper with only Greenwhisper prepared). Set wawa skill_profs=['Athletics','Stealth'] and skill_experts=['Stealth'] — these persist (intentional per the request).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All testids confirmed present: sheet-rollers, roll-ability-{str|dex|con|int|wis|cha}, roll-save-{...}, roll-init, skills-toggle, skills-list, roll-skill-{kebab} (18 rows), char-view-<slug>, char-roll-<slug>, active-pc-banner, clear-active-pc, cast-spell-<kebab>, spell-<kebab>, view-on-tree-<kebab>, editor-dice-count, editor-dice-size, editor-bonus. Bonus math verified: Athletics (STR 14, prof) = +5 (mod +2 + pb +3); Stealth (DEX 10, expert) = +6 (mod 0 + 2*pb); Perception (WIS 10, none) = +0; Wisdom save (proficient, gold border) modifier = +3. All sheet rolls AND Dice-page rolls post to /api/dice/rolls with pc_id, pc_name, kind. Spell cast posts label='Fire Bolt (1d10)' kind='spell'. Spell name pill click toggles prepared without firing cast (feed delta=0). clear-active-pc strips the ?character= query param from /dice URL.",
+  "validated_flows": [
+    "POST/GET /api/dice/rolls round-trips pc_id, pc_name, kind",
+    "PUT /api/pcs persists skill_profs/skill_experts AND preserves level, resources, origin_unlocks",
+    "/api/spells/library returns dice fields for both SRD/homebrew and magic-tree nodes",
+    "PUT /api/rules/spells/{id} updates dice_count/dice_size/bonus on rules_spells (Fire Bolt → 1d10+0)",
+    "PUT /api/magic/trees/{id} persists dice config on a magic-tree node (Ember Lash → 2d6+1)",
+    "Sheet rollers (ability check / save / init / 18 skills) post to feed with correct math",
+    "Skills toggle opens/closes skills-list",
+    "Dice page ?character=<id> renders active-pc-banner + embedded SheetRollers + clear button",
+    "clear-active-pc strips ?character query param and removes banner",
+    "Spell cast button posts a 'spell' kind roll to feed with NdM(+B) label",
+    "Spell name pill toggles spells_prepared (verified server-side) without firing cast"
+  ]
+}

@@ -722,6 +722,10 @@ class DiceRollIn(BaseModel):
     total: int
     crit: bool = False
     fumble: bool = False
+    # Optional PC linkage (used by sheet rolls)
+    pc_id: Optional[str] = None
+    pc_name: Optional[str] = None
+    kind: Optional[str] = None  # "ability"|"save"|"init"|"skill"|"spell"|"custom"
 
 
 @api.post("/dice/rolls")
@@ -794,6 +798,10 @@ class MagicNode(BaseModel):
     components: Optional[str] = ""
     duration: Optional[str] = ""
     spell_classes: Optional[List[str]] = Field(default_factory=list)
+    # Damage / effect dice for casting this spell-node (e.g., 3d6+2)
+    dice_count: Optional[int] = None
+    dice_size: Optional[int] = None
+    bonus: Optional[int] = None
     # ---- Stat modifiers granted while this node is unlocked & level-gate met ----
     modifiers: Optional[List[NodeModifier]] = Field(default_factory=list)
 
@@ -905,6 +913,9 @@ async def spell_library():
             "classes": sp.get("classes", []),
             "description": sp.get("description", ""),
             "source": sp.get("source", "srd"),
+            "dice_count": sp.get("dice_count"),
+            "dice_size": sp.get("dice_size"),
+            "bonus": sp.get("bonus"),
         })
     async for tree in db.magic_trees.find({}, {"_id": 0}):
         for n in (tree.get("nodes") or []):
@@ -928,6 +939,9 @@ async def spell_library():
                 "classes": n.get("spell_classes") or [],
                 "description": n.get("description") or "",
                 "source": "magic-node",
+                "dice_count": n.get("dice_count"),
+                "dice_size": n.get("dice_size"),
+                "bonus": n.get("bonus"),
             })
     items.sort(key=lambda s: (s.get("level", 0), s.get("name", "").lower()))
     return items
@@ -1187,6 +1201,8 @@ class PlayerCharacterIn(BaseModel):
     speed: Optional[int] = None
     proficiencies: Optional[List[str]] = None  # skill names
     saving_throws: Optional[List[str]] = None  # ability names
+    skill_profs: Optional[List[str]] = None    # 5e skill names player is proficient in
+    skill_experts: Optional[List[str]] = None  # 5e skill names with expertise (double prof)
     languages: Optional[List[str]] = None
     spells_known: Optional[List[str]] = None   # spell names or ids
     spells_prepared: Optional[List[str]] = None  # subset of spells_known that are prepared today
@@ -1250,6 +1266,8 @@ async def create_pc(body: PlayerCharacterIn, request: Request):
         "speed": body.speed,
         "proficiencies": body.proficiencies or [],
         "saving_throws": body.saving_throws or [],
+        "skill_profs": body.skill_profs or [],
+        "skill_experts": body.skill_experts or [],
         "languages": body.languages or [],
         "spells_known": body.spells_known or [],
         "spells_prepared": body.spells_prepared or [],
@@ -1332,6 +1350,8 @@ async def update_pc(entry_id: str, body: PlayerCharacterIn, request: Request):
         "speed": body.speed,
         "proficiencies": body.proficiencies,
         "saving_throws": body.saving_throws,
+        "skill_profs": body.skill_profs,
+        "skill_experts": body.skill_experts,
         "languages": body.languages,
         "spells_known": body.spells_known,
         "spells_prepared": body.spells_prepared,

@@ -17,6 +17,9 @@ const EMPTY_DRAFT = {
   duration: "",
   classes: [],
   description: "",
+  dice_count: null,
+  dice_size: null,
+  bonus: 0,
   source: "homebrew",
 };
 
@@ -259,6 +262,12 @@ function SpellCard({ spell, isAdmin, onEdit, onDelete }) {
         {spell.range && <div><span className="text-lantern/70 mr-1">Range:</span>{spell.range}</div>}
         {spell.components && <div><span className="text-lantern/70 mr-1">Comp:</span>{spell.components}</div>}
         {spell.duration && <div><span className="text-lantern/70 mr-1">Dur:</span>{spell.duration}</div>}
+        {spell.dice_count && spell.dice_size && (
+          <div className="col-span-2 text-lantern">
+            <span className="text-lantern/70 mr-1">Dice:</span>
+            {spell.dice_count}d{spell.dice_size}{spell.bonus ? (spell.bonus > 0 ? `+${spell.bonus}` : spell.bonus) : ""}
+          </div>
+        )}
       </div>
 
       {spell.description && (
@@ -326,6 +335,17 @@ function SpellEditor({ initial, onSave, onClose }) {
               testid="editor-classes"
             />
           </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Dice Count">
+              <Inp type="number" v={draft.dice_count ?? ""} on={(v) => set("dice_count", v === "" ? null : parseInt(v, 10))} placeholder="3" testid="editor-dice-count" />
+            </Field>
+            <Field label="Dice Size">
+              <Inp type="number" v={draft.dice_size ?? ""} on={(v) => set("dice_size", v === "" ? null : parseInt(v, 10))} placeholder="6 (d6)" testid="editor-dice-size" />
+            </Field>
+            <Field label="Bonus">
+              <Inp type="number" v={draft.bonus ?? 0} on={(v) => set("bonus", v === "" ? 0 : parseInt(v, 10))} placeholder="2" testid="editor-bonus" />
+            </Field>
+          </div>
           <Field label="Description">
             <textarea
               value={draft.description || ""}
