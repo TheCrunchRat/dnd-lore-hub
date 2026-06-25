@@ -15,6 +15,7 @@ import Sessions from "@/pages/Sessions";
 import Shop from "@/pages/Shop";
 import Register from "@/pages/Register";
 import RulesAdmin from "@/pages/RulesAdmin";
+import AdminLayouts from "@/pages/AdminLayouts";
 import Guide from "@/pages/Guide";
 import Profile from "@/pages/Profile";
 import { Toaster } from "sonner";
@@ -64,6 +65,7 @@ function RouterShell() {
 
         <Route path="/admin" element={<ProtectedRoute requireAdmin><Admin /></ProtectedRoute>} />
         <Route path="/admin/rules" element={<ProtectedRoute requireAdmin><RulesAdmin /></ProtectedRoute>} />
+        <Route path="/admin/layouts" element={<ProtectedRoute requireAdmin><AdminLayouts /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
