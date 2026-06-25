@@ -111,6 +111,13 @@
   - `CharacterBuilder` spells step: removed the hard `klass?.spellcasting` gate (was broken since the SRD class dropdown was replaced by class-trees). Now always visible; spell slots grid renders all 9 levels; spell picker has its own search + level + school + class filters; homebrew spells flagged with `HB`
   - Top nav: added "Spells" link between Magic and Shop
   - Tests: `/app/backend/tests/test_spells_crud.py` — 3/3 pass
+- **Tree ↔ Spell merge + Stat Modifiers**:
+  - `/spells` route removed; top nav cleaned; `/magic` page gains a `Spell Compendium` toggle button that renders the full compendium inline (search/filter/cards). "Back to Trees" restores the tree grid
+  - `MagicNode` model extended with `spell_level / school / casting_time / spell_range / components / duration / spell_classes` and `modifiers: List[{stat, value}]`. `NodeEditor` gains "Also publish as a spell" toggle (reveals spell fields) and "Stat Modifiers" section (Add/remove rows; stats: str/dex/con/int/wis/cha + hp/ac/speed/init)
+  - New endpoint `GET /api/spells/library` merges SRD + homebrew rules_spells + every magic-tree node with `spell_level` set. Node-sourced spells carry `tree_id / tree_name / tree_slug / accent_color / node_id` and `source: "magic-node"`; the compendium card shows a clickable tree-name badge in the tree's accent color
+  - `lib/statModifiers.js` computes per-PC modifier totals from origin/foundation unlocks + class-tree (auto), level-gated by `pc.level >= node.level_required`. `CharacterSheet` applies the bonuses to all six ability scores plus HP/AC/Speed/Init, with a small +/- badge per stat and a hover tooltip listing each contributing node. Level-down hides modifiers automatically
+  - `CharacterBuilder` spell picker now reads `/api/spells/library` so node-spells show in the builder too
+  - Tests: `/app/backend/tests/test_spell_library_and_modifiers.py` (6 new) — 17/17 pytests pass
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
