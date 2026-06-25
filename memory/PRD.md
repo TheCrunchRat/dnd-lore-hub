@@ -191,6 +191,11 @@
   - `/app/backend/db/indexes.py` — new `ensure_indexes(db)` function owns every `create_index` call (~25 lines). `server.py` startup hook is now a 3-line block (`ensure_indexes` + 7 seeders + storage init). Adding a new collection's indexes now means touching one file.
   - `/app/frontend/src/components/magic-tree/SpellFields.jsx` + `ModifiersEditor.jsx` — pulled out of `NodeEditor.jsx` (was 472 lines, now 338). `SpellFields` owns its `SCHOOLS` constant + internal `TinyInput` helper; `ModifiersEditor` owns its `STATS` constant. NodeEditor imports them and is now strictly a coordinator. Lint clean; magic page renders normally post-extraction.
   - **All 87 pytests still pass.** Server.py is now exactly 99 lines.
+- **Sell-to-merchant inverse flow + sheet-roll dice animation (P2 future items finished)**:
+  - **Backend**: `routes/shop.py` extended with `SellRequestIn` model and `POST /shop/sell-requests` (player picks an item from their PC's equipment, proposes a price, optional note). `request_out` now exposes `kind: "purchase"|"sell"` + `final_price_gp`. The approve handler branches on kind: `sell` adds gold and removes one instance of the item from `metadata.equipment` (handles duplicates correctly); DM can override the proposed price via `{final_price_gp: X}` body. Purchase path unchanged. Closed-shop / item-not-in-equipment / duplicate-pending all correctly 400/409. 12 new pytests in `test_shop_sell.py` — **99/99 backend tests pass total.**
+  - **Shop UI** (`Shop.jsx`): "Sell to {merchant.name}" button in the status strip (visible when logged in, active PC has equipment, merchant open). Opens `SellModal` with an equipment dropdown + price input + note + submit. Pending strip now prefixes each row with a `Sell` or `Buy` chip and uses "from" vs "→" wording per kind.
+  - **Admin Requests tab** (`AdminShop.jsx`): each pending row shows a `req-kind-{id}` chip (emerald "Sell" or lantern "Buy") with the appropriate icon (`HandCoins` vs `ShoppingBag`). Sell rows expose a "Haggle to" `sell-override-input-{id}` price field; leaving it blank accepts the player's proposed price, otherwise sends `final_price_gp` to the API. Decided-history rows show kind + final-paid price for approved sells.
+  - **Dice animation** (`Dice.jsx`): new `seenRollIds` ref + `playAnimation(roll)` helper. On the feed delta poll, any new roll where `player_name === playerName` OR `pc_id === active PC.id` triggers the replay animation in the dice-display block. Quick/builder rolls now also register their own POST-returned ID into `seenRollIds` so they don't double-animate. Verified end-to-end: posting a sheet roll while viewing `/dice` shows the spin → settled value within ~2s (matches poll interval); quick d20 still triggers exactly one animation.
 - **Backend modularization (P2)**: `server.py` shrunk from 2204 → 1463 lines (~33% reduction). Extracted:
   - `/app/backend/deps.py` — Mongo client, logger, JWT config, auth helpers (`hash_password`, `verify_password`, token creators, cookie helpers, `get_current_user`, `get_optional_user`), `slugify`, `CATEGORIES`, storage config constants
   - `/app/backend/seeds.py` — all `seed_*` functions (admins, entries, magic trees, rules, default map, guides) and tree-data helpers (`_node`, `_wickfire_nodes`, etc.) + `SEED_ENTRIES` / `SEED_MAGIC_TREES`
@@ -200,9 +205,8 @@
   - `server.py` now imports from these modules and just hosts the remaining route groups (auth, profile, entries, settings, guides, maps, dice, magic, sessions, comments, PCs, equip). Sub-routers are mounted under the same `/api` prefix via `api.include_router(sub)`. 66/66 pytests pass; live `/api/layouts`, `/api/rules/*`, `/api/entries`, `/api/dice/rolls` curls all 200 OK
 
 ## Backlog / Next
-- All previously-listed P2/P3 polish items are complete. Open backlog:
-- **P2 (future)** "Sell to merchant" inverse flow — players nominate items from their PC equipment, DM approves a gold credit. Mirrors existing purchase pipeline.
 - **P2 (future)** Per-user layout overrides on top of the realm default (currently `/admin/layouts` is realm-wide). Same backend keyed by user.
+- **P2 (future)** Sweep `window.confirm()` from the rest of the app (magic node delete, session delete, guide delete, map delete) — use the new `ConfirmDialog` primitive for visual consistency.
 - **P3 (future)** OpenAPI tags per route module — `APIRouter(tags=["Magic"])` etc. — so `/docs` swagger groups endpoints by domain.
 
 ## Test Credentials
