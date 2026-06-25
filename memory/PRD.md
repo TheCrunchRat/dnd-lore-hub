@@ -164,11 +164,18 @@
   - `CharacterSheet.jsx` refactored: dynamic `renderBlock(key)` switch driven by `effectivePage(layout, "character_sheet")`. **`LiveRollFeed` removed entirely** (moved to Dice page per user request). 1-col when right slot empty, 2-col grid when populated. `EntryDetail` now passes `equipNode` + `contentNode` props so EquipBanner and markdown body can be slotted into the layout
   - `Dice.jsx` refactored: same renderBlock pattern. `live_feed` block ("Around the Table") owns the right rail by default; DM can move it to main column / hide it
   - Tests: `/app/backend/tests/test_layouts.py` (5 new) — 66/66 pytests pass. Frontend e2e verified: move live_feed Side→Main on `/admin/layouts` reflects on `/dice` as single-column; LiveRollFeed confirmed absent from `/characters/{slug}`
+- **"Whose turn?" highlight on Dice live feed (P1)**: the most-recent `kind:"init"` roll in the feed pins to the top with a bright `#FBBF24` border, ember-pulse glow, and a `★ CURRENT TURN — <pc_name or player>` badge (`data-testid="current-turn"` + `data-testid="current-turn-badge"`). Stays "current" until another initiative roll is posted, so the table can flip between actors naturally
+- **Backend modularization (P2)**: `server.py` shrunk from 2204 → 1463 lines (~33% reduction). Extracted:
+  - `/app/backend/deps.py` — Mongo client, logger, JWT config, auth helpers (`hash_password`, `verify_password`, token creators, cookie helpers, `get_current_user`, `get_optional_user`), `slugify`, `CATEGORIES`, storage config constants
+  - `/app/backend/seeds.py` — all `seed_*` functions (admins, entries, magic trees, rules, default map, guides) and tree-data helpers (`_node`, `_wickfire_nodes`, etc.) + `SEED_ENTRIES` / `SEED_MAGIC_TREES`
+  - `/app/backend/storage.py` — Emergent object storage helpers + `/uploads/*` endpoints (its own APIRouter)
+  - `/app/backend/routes/rules.py` — D&D 5e SRD rules library endpoints
+  - `/app/backend/routes/layouts.py` — `GET/PUT /api/layouts` endpoints
+  - `server.py` now imports from these modules and just hosts the remaining route groups (auth, profile, entries, settings, guides, maps, dice, magic, sessions, comments, PCs, equip). Sub-routers are mounted under the same `/api` prefix via `api.include_router(sub)`. 66/66 pytests pass; live `/api/layouts`, `/api/rules/*`, `/api/entries`, `/api/dice/rolls` curls all 200 OK
 
 ## Backlog / Next
-- **P1** "Whose turn?" highlight on Dice page live feed (highlight latest Initiative roll's PC)
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
-- **P2** Refactor: break `server.py` (now ~2200 lines) into route modules under `/app/backend/routes`
+- **P2** Continue route extraction — pull auth / profile / entries / sessions / pcs / magic / maps / guides / dice / settings into `/app/backend/routes/*.py` modules (server.py is now 1463 lines after Phase 1 extraction)
 - **P3** Promote `SpellFields` & `ModifiersEditor` from inline-in-`NodeEditor.jsx` to their own files if the editor keeps growing
 
 ## Test Credentials

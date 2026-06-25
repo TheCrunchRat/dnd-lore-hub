@@ -409,26 +409,41 @@ export default function Dice() {
         </div>
         {feed.length === 0 ? (
           <p className="text-sm text-muted-bone">No rolls yet. Be the first to cast.</p>
-        ) : (
+        ) : (() => {
+          // Whose turn? — most recent roll with kind="init" is the current actor.
+          const currentTurn = [...feed].reverse().find((r) => r.kind === "init") || null;
+          const rest = [...feed].reverse().filter((r) => !currentTurn || r.id !== currentTurn.id);
+          const ordered = currentTurn ? [currentTurn, ...rest] : rest;
+          return (
           <ul className="space-y-3 max-h-[680px] overflow-y-auto pr-1">
-            {[...feed].reverse().map((h) => {
+            {ordered.map((h) => {
               const mine = h.player_name === playerName;
+              const isTurn = currentTurn && h.id === currentTurn.id;
               return (
                 <li
                   key={h.id}
-                  data-testid={`feed-${h.id}`}
+                  data-testid={isTurn ? "current-turn" : `feed-${h.id}`}
                   className={`border-l-2 pl-3 py-1.5 transition-colors ${
-                    mine ? "border-[#FBBF24]/60 bg-[#FBBF24]/5" : "border-[#2C362F] hover:border-[#FBBF24]/40"
+                    isTurn
+                      ? "border-[#FBBF24] bg-[#FBBF24]/10 ember-pulse"
+                      : mine
+                      ? "border-[#FBBF24]/60 bg-[#FBBF24]/5"
+                      : "border-[#2C362F] hover:border-[#FBBF24]/40"
                   }`}
                 >
+                  {isTurn && (
+                    <div className="text-[9px] tracking-[0.3em] uppercase text-[#FBBF24] mb-1 inline-flex items-center gap-1" data-testid="current-turn-badge">
+                      <span>★</span> Current turn — {h.pc_name || h.player_name}
+                    </div>
+                  )}
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className={`text-sm font-serif-display ${mine ? "text-lantern" : "text-bone"}`}>
+                    <span className={`text-sm font-serif-display ${isTurn || mine ? "text-lantern" : "text-bone"}`}>
                       {h.player_name}
                       {mine && <span className="ml-1.5 text-[9px] tracking-[0.25em] uppercase text-muted-bone">you</span>}
                     </span>
                     <span
                       className={`font-serif-display text-2xl leading-none ${
-                        h.crit ? "text-[#FBBF24] ember-glow" : h.fumble ? "text-red-400" : "text-bone"
+                        h.crit ? "text-[#FBBF24] ember-glow" : h.fumble ? "text-red-400" : isTurn ? "text-[#FBBF24]" : "text-bone"
                       }`}
                     >
                       {h.total}
@@ -448,7 +463,8 @@ export default function Dice() {
               );
             })}
           </ul>
-        )}
+          );
+        })()}
       </div>
       );
     }
