@@ -97,6 +97,14 @@
   - Hardening: `PlayerCharacterIn.level` default flipped from 1 → None so a minimal PUT can no longer reset character level
   - EntryDetail legacy properties card now also filters `spells_prepared`, `spell_slots_used`, `resource_*` to avoid the `[object Object]` leak
   - Test coverage: `/app/backend/tests/test_spells.py` (6/6 pass) — create, slot merge, prepared merge, long rest, anon 403, public read
+- **Magic Trees → Character integration** (three distinct feels):
+  - **Origin Magic**: per-PC `origin_unlocks` array of `{tree_id, node_id, as_spell}`. Players pick nodes via a `MagicTreePicker` modal; each origin unlock can be toggled **castable as a spell** — castable ones merge into the Spells list (with a flame icon) and respect prepared/known + spell-slot use. Non-castable ones sit in the new "Origin Powers" section
+  - **Foundation Training**: per-PC `foundation_unlocks` array of `{tree_id, node_id}`. Players self-select nodes; they appear on the sheet with the tree's accent color
+  - **Class Path**: single `class_tree_id`. Replaces the 5e SRD class dropdown in `CharacterBuilder` entirely. Selected tree's nodes auto-populate "Class Features" — the list is filtered live by `node.level_required <= pc.level`, so leveling up reveals features and leveling down hides them
+  - New components: `MagicTreePicker.jsx` (reusable modal) and `CharacterTreeSections.jsx` (the three on-sheet blocks). Both stable `data-testid`s
+  - Backend `PlayerCharacterIn` + POST/PUT extended; metadata-preserving merge unchanged
+  - EntryDetail legacy properties card hides the new keys to avoid `[object Object]` leaks
+  - Tests: `/app/backend/tests/test_magic_trees_pc.py` + `/app/backend/tests/test_level_gate_e2e.py` — 8/8 pass
 
 ## Backlog / Next
 - **P1** Spell system Batch D — redesigned spell browser (search/filter by school + level + description) + DM-managed homebrew spells in the rules library

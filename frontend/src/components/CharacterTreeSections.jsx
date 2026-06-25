@@ -87,6 +87,7 @@ export default function CharacterTreeSections({ entry, canEdit, onUpdated }) {
           icon={Sparkles}
           color="#FCA5A5"
           label={classTree ? `Class Path · ${classTree.name}` : "Class Path"}
+          editTestId="edit-class-path"
           edit={canEdit ? () => setPickerCat("class") : null}
           editLabel={classTree ? "Change" : "Choose"}
           empty={classTree
@@ -122,6 +123,7 @@ export default function CharacterTreeSections({ entry, canEdit, onUpdated }) {
           icon={GitBranch}
           color="#86EFAC"
           label="Foundation Training"
+          editTestId="edit-foundation-training"
           edit={canEdit ? () => setPickerCat("foundation") : null}
           empty="No foundation training acquired."
         >
@@ -163,6 +165,7 @@ export default function CharacterTreeSections({ entry, canEdit, onUpdated }) {
           icon={Flame}
           color="#FBBF24"
           label="Origin Powers"
+          editTestId="edit-origin-powers"
           edit={canEdit ? () => setPickerCat("origin") : null}
           empty="No origin powers bound."
         >
@@ -215,7 +218,7 @@ export default function CharacterTreeSections({ entry, canEdit, onUpdated }) {
   );
 }
 
-function Section({ icon: Icon, color, label, edit, editLabel = "Edit", empty, children }) {
+function Section({ icon: Icon, color, label, edit, editLabel = "Edit", editTestId, empty, children }) {
   const hasChildren = React.Children.count(children) > 0;
   return (
     <div className="lantern-card p-4 mb-6" style={{ borderColor: `${color}33` }}>
@@ -226,7 +229,7 @@ function Section({ icon: Icon, color, label, edit, editLabel = "Edit", empty, ch
         {edit && (
           <button
             onClick={edit}
-            data-testid={`edit-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+            data-testid={editTestId || `edit-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] tracking-widest uppercase border border-rust text-muted-bone hover:text-bone hover:border-[#FBBF24]/50"
           >
             <PenSquare className="w-3 h-3" /> {editLabel}
