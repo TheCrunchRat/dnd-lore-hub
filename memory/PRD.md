@@ -132,6 +132,14 @@
   - Bugfix: `StatBlock` was rendering literal `0` under HP/AC/Speed/Init when `mod === 0` (classic `0 && JSX` falsy trap). Switched to `Boolean(mod)` guard + ternary
   - EntryDetail legacy-properties filter now also hides `rest_config`
   - Tests: `/app/backend/tests/test_rest_config.py` — 3/3 pass · 49/49 total
+- **Multi-resources + Modifier Visibility + Save Bug Fix**:
+  - **Bug**: saving via Character Builder wiped the Mana bar. Root cause: PUT `/api/pcs/{id}` was POPing `resource_*` legacy fields when the client sent `None` (which the builder always did since it never included resource fields). Fixed: pop only on explicit empty string (deliberate clear); `None` preserves
+  - `metadata.resources: List[{id, name, max, current, color}]` — first-class multi-resource model. Legacy single `resource_*` fields kept for back-compat read; first `resources` write clears them
+  - `ResourceBar.jsx` fully rewritten: one row per resource with name, current/max, +/- buttons, settings gear, colored progress bar. "+ Add resource" button opens the same modal in "New Resource" mode
+  - `RestManager` now applies recovery to every resource, each clamped to its own max
+  - `ActiveModifiersPanel.jsx` (new) — collapsible breakdown between Rest bar and stat row. Lists every active modifier with its source tree·node and ±value, plus an "Unlocks at higher levels" section for level-gated modifiers (each pending row deep-links to `/magic/<slug>?node=<id>` with the pulse)
+  - EntryDetail legacy-properties filter extended with `resources`
+  - Tests: `/app/backend/tests/test_multi_resources.py` (7 new) — 56/56 pytests pass
 
 ## Backlog / Next
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
