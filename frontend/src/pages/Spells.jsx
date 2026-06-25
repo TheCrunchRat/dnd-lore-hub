@@ -309,6 +309,7 @@ function SpellEditor({ initial, onSave, onClose }) {
               v={(draft.classes || []).join(", ")}
               on={(v) => set("classes", v.split(",").map((s) => s.trim()).filter(Boolean))}
               placeholder="Wizard, Sorcerer, Wickfire Keeper"
+              testid="editor-classes"
             />
           </Field>
           <Field label="Description">

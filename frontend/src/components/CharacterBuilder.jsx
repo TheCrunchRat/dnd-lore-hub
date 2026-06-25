@@ -338,8 +338,6 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
                   <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                     {[1,2,3,4,5,6,7,8,9].map((lvl) => {
                       const s = spellSlots[lvl] || { max: 0, used: 0 };
-                      const hidden = !s.max && !klass?.spellcasting;
-                      if (hidden && !Object.keys(spellSlots).includes(String(lvl))) return null;
                       return (
                         <div key={lvl} className="border border-rust p-2 text-center">
                           <div className="text-[10px] tracking-widest uppercase text-lantern mb-1">Lv {lvl}</div>

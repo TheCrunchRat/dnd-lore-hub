@@ -105,11 +105,16 @@
   - Backend `PlayerCharacterIn` + POST/PUT extended; metadata-preserving merge unchanged
   - EntryDetail legacy properties card hides the new keys to avoid `[object Object]` leaks
   - Tests: `/app/backend/tests/test_magic_trees_pc.py` + `/app/backend/tests/test_level_gate_e2e.py` — 8/8 pass
+- **Spell Compendium + Homebrew (Batch D)**:
+  - New public page `/spells` listing all SRD + homebrew spells with search-by-text + filter-by-level + filter-by-school + filter-by-class + "homebrew only" toggle + clear-filters
+  - DM-only inline CRUD: Forge / Edit / Delete homebrew spells with a `SpellEditor` modal (school dropdown, level dropdown, casting time, range, components, duration, classes, description). Homebrew spells render with an orange "Homebrew" badge
+  - `CharacterBuilder` spells step: removed the hard `klass?.spellcasting` gate (was broken since the SRD class dropdown was replaced by class-trees). Now always visible; spell slots grid renders all 9 levels; spell picker has its own search + level + school + class filters; homebrew spells flagged with `HB`
+  - Top nav: added "Spells" link between Magic and Shop
+  - Tests: `/app/backend/tests/test_spells_crud.py` — 3/3 pass
 
 ## Backlog / Next
-- **P1** Spell system Batch D — redesigned spell browser (search/filter by school + level + description) + DM-managed homebrew spells in the rules library
 - **P1** Populate Shop page with items, prices, merchant NPCs (last remaining seed)
-- **P2** Refactor: break `server.py` (now ~2000 lines) into route modules under `/app/backend/routes`
+- **P2** Refactor: break `server.py` (now ~2050 lines) into route modules under `/app/backend/routes`
 - **P3** Backend min/max enforcement for `level_required` (currently UI-only 1–20)
 
 ## Test Credentials
