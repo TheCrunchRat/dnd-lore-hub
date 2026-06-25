@@ -56,6 +56,11 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
   const [playerName, setPlayerName] = useState(user?.name || meta.owner || localStorage.getItem(NAME_KEY) || "");
   const [classTreeId, setClassTreeId] = useState(meta.class_tree_id || "");
   const [classTrees, setClassTrees] = useState([]);
+  // Spell-step filters
+  const [spellQuery, setSpellQuery] = useState("");
+  const [spellSchool, setSpellSchool] = useState("");
+  const [spellLevelFilter, setSpellLevelFilter] = useState("");
+  const [spellClassFilter, setSpellClassFilter] = useState("");
 
   // Rules library
   const [races, setRaces] = useState([]);
@@ -324,44 +329,88 @@ export default function CharacterBuilder({ open, onClose, onSaved, existing }) {
 
             {STEPS[step] === "spells" && (
               <>
-                {!klass?.spellcasting ? (
-                  <p className="text-sm text-muted-bone">{klass ? `${klass.name} is not a spellcasting class.` : "Pick a class on the Identity step first."}</p>
-                ) : (
-                  <>
-                    <Field label="Spell Slots (max / used)">
-                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                        {Object.entries(spellSlots).sort(([a], [b]) => +a - +b).map(([lvl, s]) => (
-                          <div key={lvl} className="border border-rust p-2 text-center">
-                            <div className="text-[10px] tracking-widest uppercase text-lantern mb-1">Lv {lvl}</div>
-                            <div className="flex items-center justify-center gap-1 text-sm">
-                              <button onClick={() => adjustSlot(lvl, "used", 1)} className="text-muted-bone hover:text-red-400" data-testid={`use-slot-${lvl}`}><Minus className="w-3 h-3"/></button>
-                              <span className="text-bone">{(s.max||0) - (s.used||0)}/{s.max||0}</span>
-                              <button onClick={() => adjustSlot(lvl, "used", -1)} className="text-muted-bone hover:text-lantern" data-testid={`free-slot-${lvl}`}><Plus className="w-3 h-3"/></button>
-                            </div>
-                            <div className="flex items-center justify-center gap-1 mt-1 text-[10px] text-muted-bone">
-                              max <button onClick={() => adjustSlot(lvl, "max", -1)} className="hover:text-lantern">−</button>
-                              {s.max||0}
-                              <button onClick={() => adjustSlot(lvl, "max", 1)} className="hover:text-lantern">+</button>
-                            </div>
+                <Field label="Spell Slots (max / used)">
+                  <div className="text-[11px] text-muted-bone mb-2 italic">
+                    {klass?.spellcasting
+                      ? `Pre-filled from ${klass.name} (level ${level}). Adjust as needed.`
+                      : "Configure slots if your class casts spells. Otherwise leave empty."}
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {[1,2,3,4,5,6,7,8,9].map((lvl) => {
+                      const s = spellSlots[lvl] || { max: 0, used: 0 };
+                      const hidden = !s.max && !klass?.spellcasting;
+                      if (hidden && !Object.keys(spellSlots).includes(String(lvl))) return null;
+                      return (
+                        <div key={lvl} className="border border-rust p-2 text-center">
+                          <div className="text-[10px] tracking-widest uppercase text-lantern mb-1">Lv {lvl}</div>
+                          <div className="flex items-center justify-center gap-1 text-sm">
+                            <button onClick={() => adjustSlot(lvl, "used", 1)} className="text-muted-bone hover:text-red-400" data-testid={`use-slot-${lvl}`}><Minus className="w-3 h-3"/></button>
+                            <span className="text-bone">{(s.max||0) - (s.used||0)}/{s.max||0}</span>
+                            <button onClick={() => adjustSlot(lvl, "used", -1)} className="text-muted-bone hover:text-lantern" data-testid={`free-slot-${lvl}`}><Plus className="w-3 h-3"/></button>
                           </div>
-                        ))}
-                      </div>
-                    </Field>
-                    <Field label="Spells Known / Prepared">
-                      <div className="max-h-64 overflow-y-auto border border-rust p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
-                        {spellsLib.filter((s) => !klass || (s.classes || []).includes(klass.name)).sort((a,b) => a.level - b.level || a.name.localeCompare(b.name)).map((s) => (
-                          <label key={s.id} className="flex items-start gap-2 cursor-pointer hover:bg-[#0B0E0C]/40 p-1">
-                            <input type="checkbox" checked={spellsKnown.includes(s.name)} onChange={() => toggleSpell(s.name)} className="accent-[#FBBF24] mt-0.5" data-testid={`spell-${s.name.replace(/\s+/g,"-")}`} />
-                            <div className="text-xs">
-                              <div className="text-bone">{s.name} <span className="text-muted-bone">· {s.level === 0 ? "Cantrip" : `Lv ${s.level}`} · {s.school}</span></div>
-                              <div className="text-muted-bone text-[10px] line-clamp-2">{s.description}</div>
+                          <div className="flex items-center justify-center gap-1 mt-1 text-[10px] text-muted-bone">
+                            max <button onClick={() => adjustSlot(lvl, "max", -1)} className="hover:text-lantern">−</button>
+                            {s.max||0}
+                            <button onClick={() => adjustSlot(lvl, "max", 1)} className="hover:text-lantern">+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Field>
+                <Field label="Spells Known / Prepared">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <input
+                      value={spellQuery}
+                      onChange={(e) => setSpellQuery(e.target.value)}
+                      placeholder="Search spells…"
+                      data-testid="builder-spell-search"
+                      className="flex-1 min-w-[180px] px-3 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none text-sm"
+                    />
+                    <select value={spellLevelFilter} onChange={(e) => setSpellLevelFilter(e.target.value)} data-testid="builder-spell-level"
+                      className="px-2 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none text-sm">
+                      <option value="">All levels</option>
+                      {[0,1,2,3,4,5,6,7,8,9].map((l) => <option key={l} value={l}>{l === 0 ? "Cantrip" : `Lv ${l}`}</option>)}
+                    </select>
+                    <select value={spellSchool} onChange={(e) => setSpellSchool(e.target.value)} data-testid="builder-spell-school"
+                      className="px-2 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none text-sm">
+                      <option value="">All schools</option>
+                      {["Abjuration","Conjuration","Divination","Enchantment","Evocation","Illusion","Necromancy","Transmutation"].map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={spellClassFilter} onChange={(e) => setSpellClassFilter(e.target.value)} data-testid="builder-spell-class"
+                      className="px-2 py-2 bg-[#0B0E0C] border border-rust text-bone focus:border-[#FBBF24] focus:outline-none text-sm">
+                      <option value="">Any class</option>
+                      {[...new Set(spellsLib.flatMap((s) => s.classes || []))].sort().map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto border border-rust p-3 grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    {(() => {
+                      const q = spellQuery.trim().toLowerCase();
+                      const list = spellsLib
+                        .filter((s) => !spellSchool || s.school === spellSchool)
+                        .filter((s) => spellLevelFilter === "" || String(s.level) === spellLevelFilter)
+                        .filter((s) => !spellClassFilter || (s.classes || []).includes(spellClassFilter))
+                        .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.description || "").toLowerCase().includes(q))
+                        .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+                      if (list.length === 0) return <div className="text-xs text-muted-bone italic col-span-2 p-2">No spells match these filters.</div>;
+                      return list.map((s) => (
+                        <label key={s.id} className="flex items-start gap-2 cursor-pointer hover:bg-[#0B0E0C]/40 p-1">
+                          <input type="checkbox" checked={spellsKnown.includes(s.name)} onChange={() => toggleSpell(s.name)} className="accent-[#FBBF24] mt-0.5" data-testid={`spell-${s.name.replace(/\s+/g,"-")}`} />
+                          <div className="text-xs min-w-0">
+                            <div className="text-bone truncate">
+                              {s.name} <span className="text-muted-bone">· {s.level === 0 ? "Cantrip" : `Lv ${s.level}`} · {s.school}</span>
+                              {s.source === "homebrew" && <span className="ml-1 text-[#F97316] text-[9px] tracking-widest uppercase">HB</span>}
                             </div>
-                          </label>
-                        ))}
-                      </div>
-                    </Field>
-                  </>
-                )}
+                            <div className="text-muted-bone text-[10px] line-clamp-2">{s.description}</div>
+                          </div>
+                        </label>
+                      ));
+                    })()}
+                  </div>
+                  <div className="text-[10px] text-muted-bone mt-2 italic">
+                    Tip: visit the full <span className="text-lantern">Spells</span> page to browse all incantations and homebrew creations.
+                  </div>
+                </Field>
               </>
             )}
 
