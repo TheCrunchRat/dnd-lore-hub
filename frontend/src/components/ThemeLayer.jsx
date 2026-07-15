@@ -1,16 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useTheme, effectiveTheme, TINT_HEX } from "../lib/theme";
+import { useLiveTheme, effectiveTheme, TINT_HEX } from "../lib/theme";
 
 /**
  * ThemeBackground — renders global background image + tint + vignette + grain
- * as a fixed layer behind the app content. Applies the realm theme merged
- * with the current-page override.
+ * as a fixed layer behind the app content. Uses `useLiveTheme` so any draft
+ * in progress from `CosmeticEditor` is visible in real time.
  */
 export function ThemeBackground() {
-  const { theme } = useTheme();
+  const theme = useLiveTheme();
   const location = useLocation();
   const t = effectiveTheme(theme, location.pathname);
+  const ms = Number(t.transition_ms ?? 600);
+  const transition = `background-image ${ms}ms ease, background-color ${ms}ms ease, opacity ${ms}ms ease, filter ${ms}ms ease`;
+  const fade = Math.max(0, Math.min(1, Number(t.background_fade || 0)));
+  const fadeMask = fade > 0
+    ? `radial-gradient(ellipse at center, black ${(1 - fade) * 60}%, transparent 100%)`
+    : null;
 
   return (
     <div className="fixed inset-0 pointer-events-none" style={{ zIndex: -1 }} aria-hidden="true">
@@ -20,33 +26,33 @@ export function ThemeBackground() {
           className="absolute inset-0"
           style={{
             backgroundImage: `url("${t.background_url}")`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundSize: t.background_size || "cover",
+            backgroundPosition: t.background_position || "center",
+            backgroundRepeat: "no-repeat",
             filter: t.background_blur ? `blur(${t.background_blur}px)` : "none",
-            transform: t.background_blur ? "scale(1.05)" : "none",  // hide blur edges
+            transform: t.background_blur ? "scale(1.05)" : "none",
+            transition,
+            WebkitMaskImage: fadeMask || undefined,
+            maskImage: fadeMask || undefined,
           }}
         />
       )}
       {t.background_dim > 0 && (
-        <div className="absolute inset-0" style={{ background: `rgba(11,14,12,${t.background_dim})` }} />
+        <div className="absolute inset-0" style={{
+          background: `rgba(11,14,12,${t.background_dim})`, transition,
+        }} />
       )}
       {t.overlay_tint !== "none" && (
-        <div
-          className="absolute inset-0"
-          style={{
-            background: TINT_HEX[t.overlay_tint] || "transparent",
-            opacity: Math.min(1, Math.max(0, t.overlay_strength || 0)),
-            mixBlendMode: "multiply",
-          }}
-        />
+        <div className="absolute inset-0" style={{
+          background: TINT_HEX[t.overlay_tint] || "transparent",
+          opacity: Math.min(1, Math.max(0, t.overlay_strength || 0)),
+          mixBlendMode: "multiply", transition,
+        }} />
       )}
       {t.vignette && (
-        <div
-          className="absolute inset-0"
-          style={{
-            background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)",
-          }}
-        />
+        <div className="absolute inset-0" style={{
+          background: "radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.55) 100%)", transition,
+        }} />
       )}
       {t.grain && <div className="absolute inset-0 theme-grain" />}
       <style>{`
@@ -57,24 +63,16 @@ export function ThemeBackground() {
 }
 
 /**
- * DecalLayer — renders all decals as absolutely positioned images across the
- * viewport. Supports three parallax modes:
- *   - static: fixed position on the viewport
- *   - scroll: shifts vertically as the page scrolls (depth ∈ [0..1])
- *   - mouse:  gently follows the cursor (depth ∈ [0..1])
- *
- * When `editMode.selectId` is set (edit mode), decals become pointer-events
- * enabled and expose their bounding boxes for drag/select handling done in
- * `CosmeticEditor`.
+ * DecalLayer — parallax modes: static | scroll | mouse. Uses live theme so
+ * decal edits preview instantly.
  */
-export function DecalLayer({ editMode, onDecalSelect, selectedDecalId }) {
-  const { theme } = useTheme();
+export function DecalLayer() {
+  const theme = useLiveTheme();
   const location = useLocation();
   const [scrollY, setScrollY] = useState(0);
   const [mouse, setMouse] = useState({ dx: 0, dy: 0 });
   const rafRef = useRef(null);
 
-  // Track scroll + mouse for parallax (respect prefers-reduced-motion)
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const onScroll = () => {
@@ -107,45 +105,26 @@ export function DecalLayer({ editMode, onDecalSelect, selectedDecalId }) {
   if (decals.length === 0) return null;
 
   return (
-    <div className={`fixed inset-0 ${editMode ? "pointer-events-none" : "pointer-events-none"}`} data-testid="decal-layer">
+    <div className="fixed inset-0 pointer-events-none" data-testid="decal-layer">
       {decals.map((d) => {
-        const isSelected = selectedDecalId === d.id;
         let transform = `translate(-50%, -50%) rotate(${d.rotation || 0}deg)`;
         if (d.parallax_mode === "scroll") {
           transform = `translate(-50%, ${-50 + (scrollY * (d.depth || 0.3) * -0.05)}%) rotate(${d.rotation || 0}deg)`;
         } else if (d.parallax_mode === "mouse") {
-          const px = mouse.dx * (d.depth || 0.3) * 40; // px shift
+          const px = mouse.dx * (d.depth || 0.3) * 40;
           const py = mouse.dy * (d.depth || 0.3) * 40;
           transform = `translate(calc(-50% + ${px}px), calc(-50% + ${py}px)) rotate(${d.rotation || 0}deg)`;
         }
         return (
-          <div
-            key={d.id}
-            data-testid={`decal-${d.id}`}
-            data-decal-id={d.id}
-            className={`absolute transition-shadow ${editMode ? "cursor-move" : ""}`}
+          <div key={d.id} data-testid={`decal-${d.id}`} className="absolute"
             style={{
-              left: `${d.x}%`,
-              top: `${d.y}%`,
-              width: `${d.width}vw`,
-              transform,
-              opacity: d.opacity,
-              zIndex: d.z_index || 5,
-              pointerEvents: editMode ? "auto" : "none",
-              boxShadow: isSelected ? "0 0 0 2px #FBBF24, 0 0 24px rgba(251,191,36,0.4)" : "none",
-              outline: editMode ? "1px dashed rgba(251,191,36,0.4)" : "none",
-              outlineOffset: "4px",
+              left: `${d.x}%`, top: `${d.y}%`, width: `${d.width}vw`,
+              transform, opacity: d.opacity, zIndex: d.z_index || 5,
               willChange: d.parallax_mode !== "static" ? "transform" : undefined,
             }}
-            onMouseDown={editMode ? (e) => onDecalSelect?.(d, e) : undefined}
           >
-            <img
-              src={d.image_url}
-              alt=""
-              draggable={false}
-              className="w-full h-auto select-none"
-              style={{ userSelect: "none", pointerEvents: "none" }}
-            />
+            <img src={d.image_url} alt="" draggable={false} className="w-full h-auto select-none"
+              style={{ userSelect: "none", pointerEvents: "none" }} />
           </div>
         );
       })}

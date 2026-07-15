@@ -36,11 +36,15 @@ class PageOverride(BaseModel):
     background_url: Optional[str] = None
     background_blur: Optional[float] = None
     background_dim: Optional[float] = None
+    background_fade: Optional[float] = None
+    background_position: Optional[str] = None
+    background_size: Optional[str] = None
     overlay_tint: Optional[str] = None
     overlay_strength: Optional[float] = None
     accent_color: Optional[str] = None
     vignette: Optional[bool] = None
     grain: Optional[bool] = None
+    transition_ms: Optional[int] = None
 
 
 class ThemeIn(BaseModel):
@@ -48,11 +52,15 @@ class ThemeIn(BaseModel):
     background_url: Optional[str] = ""
     background_blur: float = 0.0       # px, 0..20
     background_dim: float = 0.45       # 0..1
+    background_fade: float = 0.0       # 0..1 — feather the image edges into darkness
+    background_position: str = "center"  # CSS background-position
+    background_size: str = "cover"       # cover | contain | auto
     overlay_tint: Literal["none", "warm", "cool", "dark", "purple", "green"] = "none"
     overlay_strength: float = 0.2      # 0..1
     accent_color: str = "#FBBF24"
     vignette: bool = True
     grain: bool = False
+    transition_ms: int = 600            # background/tint cross-fade duration
     decals: List[Decal] = Field(default_factory=list)
     page_overrides: dict = Field(default_factory=dict)  # {"/dice": {...PageOverride...}}
 
@@ -61,11 +69,15 @@ DEFAULT_THEME = {
     "background_url": "",
     "background_blur": 0.0,
     "background_dim": 0.45,
+    "background_fade": 0.0,
+    "background_position": "center",
+    "background_size": "cover",
     "overlay_tint": "none",
     "overlay_strength": 0.2,
     "accent_color": "#FBBF24",
     "vignette": True,
     "grain": False,
+    "transition_ms": 600,
     "decals": [],
     "page_overrides": {},
 }
