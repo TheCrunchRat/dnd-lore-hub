@@ -24,6 +24,7 @@ from routes.pcs import router as pcs_router
 from routes.rules import router as rules_router
 from routes.layouts import router as layouts_router
 from routes.shop import router as shop_router
+from routes.theme import router as theme_router
 from storage import router as storage_router, init_storage
 from seeds import (
     seed_admins, seed_entries, seed_magic_trees, seed_rules,
@@ -38,7 +39,7 @@ api = APIRouter(prefix="/api")
 for sub in (
     auth_router, entries_router, guides_router, maps_router, dice_router,
     magic_router, sessions_router, pcs_router, rules_router, layouts_router,
-    shop_router, storage_router,
+    shop_router, theme_router, storage_router,
 ):
     api.include_router(sub)
 

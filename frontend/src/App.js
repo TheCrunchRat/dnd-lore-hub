@@ -20,6 +20,9 @@ import AdminShop from "@/pages/AdminShop";
 import Guide from "@/pages/Guide";
 import Profile from "@/pages/Profile";
 import { Toaster } from "sonner";
+import { ThemeProvider } from "@/lib/theme";
+import { ThemeBackground, DecalLayer } from "@/components/ThemeLayer";
+import CosmeticEditor from "@/components/CosmeticEditor";
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, checking } = useAuth();
@@ -77,21 +80,26 @@ function RouterShell() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <RouterShell />
-        <Toaster
-          theme="dark"
-          position="bottom-right"
-          toastOptions={{
-            style: {
-              background: "#151B17",
-              border: "1px solid #2C362F",
-              color: "#E6E3D8",
-              fontFamily: "Manrope, sans-serif",
-            },
-          }}
-        />
-      </BrowserRouter>
+      <ThemeProvider>
+        <BrowserRouter>
+          <ThemeBackground />
+          <DecalLayer />
+          <CosmeticEditor />
+          <RouterShell />
+          <Toaster
+            theme="dark"
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#151B17",
+                border: "1px solid #2C362F",
+                color: "#E6E3D8",
+                fontFamily: "Manrope, sans-serif",
+              },
+            }}
+          />
+        </BrowserRouter>
+      </ThemeProvider>
     </AuthProvider>
   );
 }
