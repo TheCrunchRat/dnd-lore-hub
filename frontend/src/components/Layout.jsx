@@ -23,7 +23,7 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-obsidian noise-bg text-bone flex flex-col">
+    <div className="min-h-screen noise-bg text-bone flex flex-col">
       <header className="sticky top-0 z-40 bg-[#0B0E0C]/85 backdrop-blur-xl border-b border-rust">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between gap-6">
           <Link to="/" className="flex items-center gap-3 group" data-testid="brand-link">

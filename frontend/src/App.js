@@ -43,6 +43,7 @@ const CATEGORY_ROUTES = [
 
 function RouterShell() {
   return (
+    <div style={{ position: "relative", zIndex: 1 }}>
     <Layout>
       <Routes>
         <Route path="/" element={<Home />} />
@@ -74,6 +75,7 @@ function RouterShell() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
+    </div>
   );
 }
 

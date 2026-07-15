@@ -149,3 +149,75 @@ async def delete_decal(decal_id: str, user: dict = Depends(get_current_user)):
     if res.modified_count == 0:
         raise HTTPException(status_code=404, detail="Decal not found")
     return {"ok": True}
+
+
+
+# ---------------------------------------------------------------------------
+# Theme presets ("moods") — full snapshots of the cosmetic state a DM can
+# save and load with one click (e.g. "Feast of Lanterns", "Duskwood Requiem").
+# Presets are stored in a separate collection; loading one overwrites the
+# active default theme.
+# ---------------------------------------------------------------------------
+
+
+class ThemePresetIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    name: str = Field(min_length=1, max_length=80)
+    theme: ThemeIn
+
+
+@router.get("/theme/presets")
+async def list_presets():
+    cur = db.realm_theme_presets.find({}, {"_id": 1, "name": 1, "updated_at": 1, "theme.background_url": 1, "theme.accent_color": 1, "theme.overlay_tint": 1})
+    out = []
+    async for doc in cur:
+        out.append({
+            "id": doc["_id"],
+            "name": doc.get("name", "Untitled"),
+            "updated_at": doc.get("updated_at"),
+            "preview": {
+                "background_url": (doc.get("theme") or {}).get("background_url", ""),
+                "accent_color": (doc.get("theme") or {}).get("accent_color", "#FBBF24"),
+                "overlay_tint": (doc.get("theme") or {}).get("overlay_tint", "none"),
+            },
+        })
+    return out
+
+
+@router.post("/theme/presets")
+async def create_preset(body: ThemePresetIn, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    doc = {
+        "_id": str(uuid.uuid4()),
+        "name": body.name.strip(),
+        "theme": body.theme.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.realm_theme_presets.insert_one(doc)
+    return {"id": doc["_id"], "name": doc["name"], "updated_at": doc["updated_at"]}
+
+
+@router.delete("/theme/presets/{preset_id}")
+async def delete_preset(preset_id: str, user: dict = Depends(get_current_user)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    res = await db.realm_theme_presets.delete_one({"_id": preset_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return {"ok": True}
+
+
+@router.post("/theme/presets/{preset_id}/apply")
+async def apply_preset(preset_id: str, user: dict = Depends(get_current_user)):
+    """Load a saved preset as the active theme."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    doc = await db.realm_theme_presets.find_one({"_id": preset_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    theme = {**DEFAULT_THEME, **(doc.get("theme") or {})}
+    theme["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.realm_theme.update_one({"_id": "default"}, {"$set": theme}, upsert=True)
+    return await get_theme()

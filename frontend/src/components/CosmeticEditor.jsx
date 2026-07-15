@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Wrench, X, Trash2, Sparkles, Save, MousePointer, Minus, ArrowLeft, ArrowRight, RefreshCcw } from "lucide-react";
+import { Wrench, X, Trash2, Sparkles, Save, MousePointer, Minus, ArrowLeft, ArrowRight, RefreshCcw, BookmarkPlus, Bookmark } from "lucide-react";
 import { useTheme, PAGE_SCOPES, DEFAULT_THEME } from "../lib/theme";
 import { useAuth } from "../contexts/AuthContext";
 import api, { formatApiError } from "../lib/api";
@@ -30,7 +30,18 @@ export default function CosmeticEditor() {
   const [selectedId, setSelectedId] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
   const [side, setSide] = useState("right");
+  const [presets, setPresets] = useState([]);
+  const [presetName, setPresetName] = useState("");
   const draggingRef = useRef(null);
+
+  const loadPresets = useCallback(async () => {
+    try {
+      const { data } = await api.get("/theme/presets");
+      setPresets(Array.isArray(data) ? data : []);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { if (editing) loadPresets(); }, [editing, loadPresets]);
 
   // When editing starts, seed the local draft AND push it to the ThemeProvider
   // so the runtime layers preview it live.
@@ -147,6 +158,35 @@ export default function CosmeticEditor() {
       await api.put("/theme", draft);
       toast.success("Realm cosmetics saved");
       reload();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const savePreset = async () => {
+    const name = presetName.trim();
+    if (!name) { toast.error("Give this mood a name first"); return; }
+    if (!draft) return;
+    try {
+      await api.post("/theme/presets", { name, theme: draft });
+      toast.success(`Saved mood "${name}"`);
+      setPresetName("");
+      loadPresets();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const applyPreset = async (preset) => {
+    try {
+      const { data } = await api.post(`/theme/presets/${preset.id}/apply`);
+      setLocalDraft(JSON.parse(JSON.stringify(data)));
+      toast.success(`Loaded "${preset.name}"`);
+      reload();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const deletePreset = async (preset) => {
+    try {
+      await api.delete(`/theme/presets/${preset.id}`);
+      toast.info(`Removed "${preset.name}"`);
+      loadPresets();
     } catch (e) { toast.error(formatApiError(e)); }
   };
 
@@ -386,6 +426,55 @@ export default function CosmeticEditor() {
                       className="w-full px-2 py-1 bg-[#0B0E0C] border border-rust text-bone text-sm" />
                   </Field>
                 </div>
+              )}
+            </Section>
+
+            <Section title="Moods (presets)" testid="section-presets">
+              <div className="text-[10px] text-muted-bone italic mb-1">
+                Save this entire cosmetic setup as a named mood so the party can jump between vibes with one click.
+              </div>
+              <div className="flex gap-2">
+                <input value={presetName} onChange={(e) => setPresetName(e.target.value)}
+                  placeholder="e.g. Feast of Lanterns" data-testid="preset-name-input"
+                  className="flex-1 px-2 py-1.5 bg-[#0B0E0C] border border-rust text-bone text-sm focus:border-[#FBBF24] focus:outline-none" />
+                <button onClick={savePreset} data-testid="save-preset-btn"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 border border-[#FBBF24]/60 text-lantern hover:bg-[#FBBF24]/10 text-[10px] tracking-widest uppercase">
+                  <BookmarkPlus className="w-3 h-3" /> Save mood
+                </button>
+              </div>
+              {presets.length === 0 ? (
+                <p className="text-[11px] text-muted-bone italic mt-2">No moods saved yet.</p>
+              ) : (
+                <ul className="space-y-1 mt-2" data-testid="preset-list">
+                  {presets.map((p) => (
+                    <li key={p.id} data-testid={`preset-row-${p.id}`}
+                      className="flex items-center gap-2 p-1.5 border border-rust hover:border-[#FBBF24]/50">
+                      <div
+                        className="w-10 h-10 border border-rust flex-shrink-0"
+                        style={{
+                          backgroundImage: p.preview?.background_url ? `url("${p.preview.background_url}")` : "none",
+                          backgroundSize: "cover", backgroundPosition: "center",
+                          backgroundColor: p.preview?.background_url ? undefined : (p.preview?.accent_color || "#151B17"),
+                        }}
+                      />
+                      <div className="flex-1 min-w-0 text-[11px]">
+                        <div className="text-bone truncate">{p.name}</div>
+                        <div className="text-muted-bone text-[10px]">
+                          tint: {p.preview?.overlay_tint || "none"}
+                        </div>
+                      </div>
+                      <button onClick={() => applyPreset(p)} data-testid={`apply-preset-${p.id}`}
+                        title="Load this mood as the active theme"
+                        className="p-1.5 text-lantern hover:bg-[#FBBF24]/10 border border-[#FBBF24]/40">
+                        <Bookmark className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => deletePreset(p)} data-testid={`delete-preset-${p.id}`}
+                        className="p-1 text-muted-bone hover:text-red-400">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </Section>
           </div>

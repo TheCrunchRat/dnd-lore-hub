@@ -35,8 +35,14 @@
     * {
         @apply border-border;
     }
-    html, body, #root {
+    html {
         @apply bg-background text-foreground;
+        font-family: 'Manrope', sans-serif;
+        min-height: 100%;
+    }
+    body, #root {
+        @apply text-foreground;
+        background: transparent;
         font-family: 'Manrope', sans-serif;
         min-height: 100%;
     }

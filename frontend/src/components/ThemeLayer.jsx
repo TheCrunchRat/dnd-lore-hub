@@ -19,7 +19,7 @@ export function ThemeBackground() {
     : null;
 
   return (
-    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: -1 }} aria-hidden="true">
+    <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 0 }} aria-hidden="true">
       {t.background_url && (
         <div
           data-testid="theme-background"
