@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Save, Trash2, X, BookOpen } from "lucide-react";
 import api, { formatApiError } from "../lib/api";
 import { toast } from "sonner";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const TABS = [
   { key: "races", label: "Races" },
@@ -25,6 +26,7 @@ export default function RulesAdmin() {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async (kind) => {
     setLoading(true);
@@ -57,7 +59,6 @@ export default function RulesAdmin() {
   };
 
   const remove = async (it) => {
-    if (!window.confirm(`Delete ${it.name}? This cannot be undone.`)) return;
     try {
       await api.delete(`/rules/${tab}/${it.id}`);
       toast.success("Removed");
@@ -125,7 +126,7 @@ export default function RulesAdmin() {
               </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => openEdit(it)} data-testid={`edit-rule-${it.id}`} className="px-2 py-1 text-xs uppercase tracking-widest text-muted-bone hover:text-lantern">Edit</button>
-                <button onClick={() => remove(it)} data-testid={`delete-rule-${it.id}`} className="p-2 text-muted-bone hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
+                <button onClick={() => setConfirmDelete(it)} data-testid={`delete-rule-${it.id}`} className="p-2 text-muted-bone hover:text-red-400"><Trash2 className="w-4 h-4"/></button>
               </div>
             </div>
           ))}
@@ -150,6 +151,16 @@ export default function RulesAdmin() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title={`Delete ${confirmDelete?.name || "this rule"}?`}
+        body="This entry will be removed from the DM's rules library. Existing character sheets keep their picks — but this option won't be selectable again."
+        confirmLabel="Delete"
+        onConfirm={() => { const it = confirmDelete; setConfirmDelete(null); if (it) remove(it); }}
+        onCancel={() => setConfirmDelete(null)}
+        testid="confirm-delete-rule"
+      />
     </div>
   );
 }

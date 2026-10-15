@@ -4,6 +4,7 @@ import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import SessionComments from "../components/SessionComments";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const NAME_KEY = "lantern.diceName"; // share name with dice page
 const RSVP_KINDS = [
@@ -70,6 +71,7 @@ export default function Sessions() {
   const [showNameField, setShowNameField] = useState(false);
   const [tab, setTab] = useState("upcoming");
   const [entries, setEntries] = useState([]); // for [[wiki]] resolution in comments
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -154,7 +156,6 @@ export default function Sessions() {
   };
 
   const remove = async (s) => {
-    if (!window.confirm(`Delete session "${s.title}"?`)) return;
     try {
       await api.delete(`/sessions/${s.id}`);
       toast.success("Session removed");
@@ -324,7 +325,7 @@ export default function Sessions() {
               onRSVP={rsvp}
               onClearRSVP={clearRsvp}
               onEdit={() => openEdit(s)}
-              onDelete={() => remove(s)}
+              onDelete={() => setConfirmDelete(s)}
               isUpcoming={tab === "upcoming"}
               entries={entries}
               onLockChanged={(updated) => setSessions((all) => all.map((x) => (x.id === updated.id ? updated : x)))}
@@ -343,6 +344,16 @@ export default function Sessions() {
           isNew={editing === "new"}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title={`Delete "${confirmDelete?.title || "session"}"?`}
+        body="The session, its RSVPs, and any comments will be erased from the calendar. This can't be undone."
+        confirmLabel="Delete session"
+        onConfirm={() => { const s = confirmDelete; setConfirmDelete(null); if (s) remove(s); }}
+        onCancel={() => setConfirmDelete(null)}
+        testid="confirm-delete-session"
+      />
     </div>
   );
 }

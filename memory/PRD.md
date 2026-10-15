@@ -225,3 +225,7 @@ See `/app/memory/test_credentials.md`. DM: `dm@lantern.realm` / `lantern-keeper-
 - Never use `window.confirm`, `window.prompt`, or `window.alert` — browsers silently block them and break app state. Use inline "click again to confirm" or React modals.
 - Player characters (`pcs`) link via `user_id` if logged in OR fall back to `player_name` string — keep backwards compatibility.
 - All backend routes prefixed `/api`. Frontend uses `process.env.REACT_APP_BACKEND_URL`. No hardcoded URLs.
+
+### Jun 2026
+- Wrote project README.md with feature overview, tech stack and local setup guide
+- Captured 12 app screenshots into docs/screenshots/ (linked from README)

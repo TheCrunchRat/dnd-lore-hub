@@ -10,6 +10,7 @@ import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import ImageUploader from "../components/ImageUploader";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const DEFAULT_W = 1000;
 const DEFAULT_H = 700;
@@ -55,7 +56,7 @@ export default function WorldMap() {
   const [placeMode, setPlaceMode] = useState(null);
   const [mapEditorOpen, setMapEditorOpen] = useState(false);
   const [mapDraft, setMapDraft] = useState(null); // {id?, name, subtitle, image_url}
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
     try {
@@ -155,12 +156,6 @@ export default function WorldMap() {
     } catch (e) { toast.error(formatApiError(e)); }
   };
   const deleteMap = async (m) => {
-    if (confirmDeleteId !== m.id) {
-      setConfirmDeleteId(m.id);
-      setTimeout(() => setConfirmDeleteId((cur) => (cur === m.id ? null : cur)), 3500);
-      return;
-    }
-    setConfirmDeleteId(null);
     try {
       await api.delete(`/maps/${m.id}`);
       toast.success(`Erased "${m.name}"`);
@@ -374,10 +369,10 @@ export default function WorldMap() {
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        onClick={() => deleteMap(m)}
+                        onClick={() => setConfirmDelete(m)}
                         data-testid={`map-delete-${m.slug}`}
-                        className={`p-1 transition-colors ${confirmDeleteId === m.id ? "text-red-400" : "text-muted-bone hover:text-red-400"}`}
-                        title={confirmDeleteId === m.id ? "Click again to confirm" : "Delete"}
+                        className="p-1 transition-colors text-muted-bone hover:text-red-400"
+                        title="Delete"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -407,6 +402,16 @@ export default function WorldMap() {
           onClose={() => { setMapEditorOpen(false); setMapDraft(null); }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title={`Erase the map "${confirmDelete?.name || ""}"?`}
+        body="The image, its subtitle, and any lantern placements tied to it will be lost. Locations aren't deleted — they'll just fall off the atlas."
+        confirmLabel="Erase map"
+        onConfirm={() => { const m = confirmDelete; setConfirmDelete(null); if (m) deleteMap(m); }}
+        onCancel={() => setConfirmDelete(null)}
+        testid="confirm-delete-map"
+      />
     </div>
   );
 }

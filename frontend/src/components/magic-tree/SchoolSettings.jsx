@@ -3,9 +3,10 @@ import { X, Trash2 } from "lucide-react";
 
 /**
  * Slide-over panel for school-level details: name, subtitle, summary, content, accent color,
- * category. Includes a two-click confirm delete (no native window.confirm — those silently break).
+ * category. Delete is handled by a themed `ConfirmDialog` in the parent — this component
+ * just fires `onDeleteClick` to open it.
  */
-export default function SchoolSettings({ tree, onChange, onClose, onDeleteClick, confirmDelete }) {
+export default function SchoolSettings({ tree, onChange, onClose, onDeleteClick }) {
   return (
     <div
       className="fixed inset-0 z-50 bg-[#0B0E0C]/80 backdrop-blur-sm"
@@ -88,14 +89,10 @@ export default function SchoolSettings({ tree, onChange, onClose, onDeleteClick,
           <button
             onClick={onDeleteClick}
             data-testid="delete-tree-btn"
-            className={`w-full mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 border text-xs tracking-widest uppercase ${
-              confirmDelete
-                ? "border-red-700 text-red-300 bg-red-950/30 hover:bg-red-900/40"
-                : "border-rust text-muted-bone hover:text-red-400 hover:border-red-800"
-            }`}
+            className="w-full mt-6 inline-flex items-center justify-center gap-2 px-4 py-2 border border-rust text-muted-bone hover:text-red-400 hover:border-red-800 text-xs tracking-widest uppercase"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            {confirmDelete ? "Click again to confirm deletion" : "Delete this school"}
+            Delete this school
           </button>
         </div>
       </div>

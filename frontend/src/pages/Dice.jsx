@@ -5,6 +5,7 @@ import api, { formatApiError } from "../lib/api";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import SheetRollers from "../components/SheetRollers";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { computeModifiers } from "../lib/statModifiers";
 import { effectivePage, blockConfig, useRealmLayout } from "../lib/layouts";
 
@@ -42,6 +43,7 @@ export default function Dice() {
   // pick up sheet-rolls posted by SheetRollers and replay them on the dice
   // display, without re-animating our own builder/quick rolls twice.
   const seenRollIds = useRef(new Set());
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const { layout } = useRealmLayout();
   const feedLimit = blockConfig(layout, "dice_page", "live_feed", { limit: 50 }).limit;
@@ -223,7 +225,6 @@ export default function Dice() {
   };
 
   const clearFeed = async () => {
-    if (!window.confirm("Clear the shared dice log for the whole party?")) return;
     try {
       await api.delete("/dice/rolls");
       setFeed([]);
@@ -449,7 +450,7 @@ export default function Dice() {
           </div>
           {user && feed.length > 0 && (
             <button
-              onClick={clearFeed}
+              onClick={() => setConfirmClear(true)}
               data-testid="clear-feed"
               className="text-[10px] tracking-widest uppercase text-muted-bone hover:text-red-400 inline-flex items-center gap-1"
             >
@@ -569,6 +570,16 @@ export default function Dice() {
       ) : (
         <div>{renderSlot(page.left)}</div>
       )}
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear the shared dice log?"
+        body="Every roll from every player disappears from the party's feed. This can't be undone."
+        confirmLabel="Clear log"
+        onConfirm={() => { setConfirmClear(false); clearFeed(); }}
+        onCancel={() => setConfirmClear(false)}
+        testid="confirm-clear-dice"
+      />
     </div>
   );
 }

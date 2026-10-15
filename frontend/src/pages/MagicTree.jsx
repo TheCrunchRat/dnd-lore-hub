@@ -9,6 +9,7 @@ import TreeCanvas from "../components/magic-tree/TreeCanvas";
 import NodeEditor from "../components/magic-tree/NodeEditor";
 import SchoolSettings from "../components/magic-tree/SchoolSettings";
 import LockedNodeModal from "../components/magic-tree/LockedNodeModal";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { CANVAS_W, CANVAS_H, uid, hexToRgb, createsCycle } from "../components/magic-tree/constants";
 
 export default function MagicTree() {
@@ -28,7 +29,8 @@ export default function MagicTree() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [lockedModalNode, setLockedModalNode] = useState(null);
-  const [confirmDeleteSchool, setConfirmDeleteSchool] = useState(false);
+  const [confirmNodeDelete, setConfirmNodeDelete] = useState(null);
+  const [confirmSchoolDelete, setConfirmSchoolDelete] = useState(false);
   const svgRef = useRef(null);
 
   // ---------- Load ----------
@@ -342,7 +344,7 @@ export default function MagicTree() {
                 editMode={editMode && !!user}
                 tree={tree}
                 onChange={(patch) => updateNode(selected.id, patch)}
-                onDelete={() => deleteNode(selected.id)}
+                onDelete={() => setConfirmNodeDelete(selected)}
                 onStartLink={() => setLinkingFromId(linkingFromId === selected.id ? null : selected.id)}
                 linkingFromId={linkingFromId}
                 onClose={() => setSelectedNodeId(null)}
@@ -381,18 +383,37 @@ export default function MagicTree() {
         <SchoolSettings
           tree={tree}
           onChange={updateTree}
-          onClose={() => { setShowSettings(false); setConfirmDeleteSchool(false); }}
-          confirmDelete={confirmDeleteSchool}
-          onDeleteClick={async () => {
-            if (!confirmDeleteSchool) { setConfirmDeleteSchool(true); return; }
-            try {
-              await api.delete(`/magic/trees/${tree.id}`);
-              toast.success("School deleted");
-              navigate("/magic");
-            } catch (e) { toast.error(formatApiError(e)); }
-          }}
+          onClose={() => setShowSettings(false)}
+          onDeleteClick={() => setConfirmSchoolDelete(true)}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmNodeDelete)}
+        title={`Delete node "${confirmNodeDelete?.name || ""}"?`}
+        body="The node, its rank tiers, spell links, and any connections into or out of it will be pruned from the tree."
+        confirmLabel="Delete node"
+        onConfirm={() => { const n = confirmNodeDelete; setConfirmNodeDelete(null); if (n) deleteNode(n.id); }}
+        onCancel={() => setConfirmNodeDelete(null)}
+        testid="confirm-delete-node"
+      />
+
+      <ConfirmDialog
+        open={confirmSchoolDelete}
+        title={`Delete the "${tree?.name || ""}" school?`}
+        body="Every node, every connection, and the school itself will vanish from the party's magic. This can't be undone."
+        confirmLabel="Delete school"
+        onConfirm={async () => {
+          setConfirmSchoolDelete(false);
+          try {
+            await api.delete(`/magic/trees/${tree.id}`);
+            toast.success("School deleted");
+            navigate("/magic");
+          } catch (e) { toast.error(formatApiError(e)); }
+        }}
+        onCancel={() => setConfirmSchoolDelete(false)}
+        testid="confirm-delete-school"
+      />
 
       {lockedModalNode && (
         <LockedNodeModal

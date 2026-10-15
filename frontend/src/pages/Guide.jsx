@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 import MarkdownView from "../components/MarkdownView";
 import MarkdownEditor from "../components/MarkdownEditor";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 /**
  * /guide and /guide/:slug — a small wiki for explaining things, with the same
@@ -28,7 +29,7 @@ export default function Guide() {
   const [editingId, setEditingId] = useState(null); // "new" | <id> | null
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -96,12 +97,6 @@ export default function Guide() {
   };
 
   const remove = async (g) => {
-    if (confirmDeleteId !== g.id) {
-      setConfirmDeleteId(g.id);
-      setTimeout(() => setConfirmDeleteId((cur) => (cur === g.id ? null : cur)), 3500);
-      return;
-    }
-    setConfirmDeleteId(null);
     try {
       await api.delete(`/guides/${g.id}`);
       toast.success(`Erased "${g.title}"`);
@@ -229,19 +224,12 @@ export default function Guide() {
                         <Pencil className="w-3.5 h-3.5" /> Edit
                       </button>
                       <button
-                        onClick={() => remove(active)}
+                        onClick={() => setConfirmDelete(active)}
                         data-testid={`delete-guide-${active.slug}`}
-                        className={`p-2 transition-colors inline-flex items-center gap-1.5 ${
-                          confirmDeleteId === active.id
-                            ? "text-red-400 border border-red-400"
-                            : "text-muted-bone hover:text-red-400"
-                        }`}
-                        title={confirmDeleteId === active.id ? "Click again to confirm" : "Delete"}
+                        className="p-2 transition-colors inline-flex items-center gap-1.5 text-muted-bone hover:text-red-400"
+                        title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />
-                        {confirmDeleteId === active.id && (
-                          <span className="text-[10px] tracking-widest uppercase whitespace-nowrap">Confirm</span>
-                        )}
                       </button>
                     </div>
                   )}
@@ -271,6 +259,16 @@ export default function Guide() {
           onClose={closeEditor}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        title={`Erase the guide "${confirmDelete?.title || ""}"?`}
+        body="The page, its images, and its cross-links vanish from the keeper's notes. This can't be undone."
+        confirmLabel="Erase guide"
+        onConfirm={() => { const g = confirmDelete; setConfirmDelete(null); if (g) remove(g); }}
+        onCancel={() => setConfirmDelete(null)}
+        testid="confirm-delete-guide"
+      />
     </div>
   );
 }
