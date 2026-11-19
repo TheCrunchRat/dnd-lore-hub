@@ -45,7 +45,7 @@ export default function ImageUploader({
       });
       // data.url is like "/api/uploads/<id>"; convert to absolute so it works
       // as an <img src> anywhere in the app.
-      const fullUrl = `${process.env.REACT_APP_BACKEND_URL}${data.url}`;
+      const fullUrl = `${process.env.REACT_APP_BACKEND_URL || ""}${data.url}`;
       onUploaded?.(fullUrl);
       toast.success("Image uploaded");
     } catch (e) {

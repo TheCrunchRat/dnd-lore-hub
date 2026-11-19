@@ -1,0 +1,28 @@
+# Render blueprint for the Python API (free plan).
+services:
+  - type: web
+    name: lantern-realm-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: MONGO_URL
+        sync: false        # paste your MongoDB Atlas connection string
+      - key: DB_NAME
+        value: lantern_realm
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false        # e.g. https://your-site.netlify.app
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CO_DM_EMAIL
+        sync: false
+      - key: CO_DM_PASSWORD
+        sync: false

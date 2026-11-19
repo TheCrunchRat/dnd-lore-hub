@@ -34,8 +34,6 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 APP_NAME = os.environ.get("APP_NAME", "lantern-realm")
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
-STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
 
 ALLOWED_IMAGE_TYPES = {
     "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg",

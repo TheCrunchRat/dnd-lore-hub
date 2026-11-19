@@ -77,7 +77,7 @@ async def on_startup():
     await seed_shop()
     try:
         init_storage()
-        logger.info("Emergent object storage initialised")
+        logger.info("Image storage ready (MongoDB)")
     except Exception as exc:
         logger.warning(f"Storage init deferred (will retry on first upload): {exc}")
 

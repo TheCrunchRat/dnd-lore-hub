@@ -1,0 +1,25 @@
+# Netlify builds the React site in /frontend.
+[build]
+  base    = "frontend"
+  command = "CI=false npm run build"
+  publish = "build"
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--legacy-peer-deps"
+  # Empty = the site calls its own /api, which Netlify forwards to the server below.
+  REACT_APP_BACKEND_URL = ""
+
+# Forward every /api request to the Python server on Render.
+# If Render gives your server a different address, change this one line.
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://lantern-realm-api.onrender.com/api/:splat"
+  status = 200
+  force  = true
+
+# Let React handle page links like /codex/mirewatch.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
